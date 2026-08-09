@@ -39,6 +39,7 @@ export const database = {
         date TEXT NOT NULL,
         patientName TEXT NOT NULL,
         patientAge TEXT,
+        patientDob TEXT,
         patientGender TEXT,
         patientPhone TEXT,
         doctorId TEXT,
@@ -53,6 +54,13 @@ export const database = {
         value TEXT
       );
     `);
+
+    // Migrate: add patientDob column if it doesn't exist yet (safe on existing DBs)
+    try {
+      db.exec(`ALTER TABLE receipts ADD COLUMN patientDob TEXT;`);
+    } catch (_e) {
+      // Column already exists — ignore
+    }
   },
 
   getDbPath: () => {
@@ -99,11 +107,12 @@ export const database = {
   },
   saveReceipt: (receipt: any) => {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO receipts (id, receiptNumber, date, patientName, patientAge, patientGender, patientPhone, doctorId, doctorName, items, total, paymentMethod)
-      VALUES (@id, @receiptNumber, @date, @patientName, @patientAge, @patientGender, @patientPhone, @doctorId, @doctorName, @items, @total, @paymentMethod)
+      INSERT OR REPLACE INTO receipts (id, receiptNumber, date, patientName, patientAge, patientDob, patientGender, patientPhone, doctorId, doctorName, items, total, paymentMethod)
+      VALUES (@id, @receiptNumber, @date, @patientName, @patientAge, @patientDob, @patientGender, @patientPhone, @doctorId, @doctorName, @items, @total, @paymentMethod)
     `);
     return stmt.run({
       patientAge: '',
+      patientDob: '',
       patientGender: 'Male',
       patientPhone: '',
       doctorId: '',
@@ -120,6 +129,7 @@ export const database = {
         date = @date,
         patientName = @patientName,
         patientAge = @patientAge,
+        patientDob = @patientDob,
         patientGender = @patientGender,
         patientPhone = @patientPhone,
         doctorId = @doctorId,
@@ -131,10 +141,16 @@ export const database = {
     `);
     return stmt.run({
       patientAge: '',
+      patientDob: '',
       patientGender: 'Male',
       patientPhone: '',
       doctorId: '',
       doctorName: '',
+      paymentMethod: 'CASH',
+      ...receipt,
+      items: JSON.stringify(receipt.items || [])
+    });
+  },
       paymentMethod: 'CASH',
       ...receipt,
       items: JSON.stringify(receipt.items || [])

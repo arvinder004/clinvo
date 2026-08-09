@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { storage, type Doctor, type Receipt, type ReceiptItem, type Service } from '../lib/storage';
+import { storage, calculateAgeFromDob, type Doctor, type Receipt, type ReceiptItem, type Service } from '../lib/storage';
 import { Plus, Trash2, Save, User, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -9,35 +9,9 @@ interface ReceiptFormProps {
   initialData?: Receipt | null;
 }
 
-const parseAge = (ageStr: string) => {
-  const yearsMatch = ageStr.match(/(\d+)\s*y/i);
-  const monthsMatch = ageStr.match(/(\d+)\s*m/i);
-  
-  const years = yearsMatch ? yearsMatch[1] : '';
-  const months = monthsMatch ? monthsMatch[1] : '';
-  
-  if (!years && !months && /^\d+$/.test(ageStr.trim())) {
-    return { years: ageStr.trim(), months: '' };
-  }
-  
-  return { years, months };
-};
-
 const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData }) => {
   const [patientName, setPatientName] = useState(initialData?.patientName || '');
-  const [ageYears, setAgeYears] = useState(() => {
-    if (initialData?.patientAge) {
-      return parseAge(initialData.patientAge).years;
-    }
-    return '';
-  });
-  const [ageMonths, setAgeMonths] = useState(() => {
-    if (initialData?.patientAge) {
-      return parseAge(initialData.patientAge).months;
-    }
-    return '';
-  });
-  const [patientAge, setPatientAge] = useState(initialData?.patientAge || '');
+  const [patientDob, setPatientDob] = useState(initialData?.patientDob || '');
   const [patientGender, setPatientGender] = useState(initialData?.patientGender || 'Male');
   const [patientPhone, setPatientPhone] = useState(initialData?.patientPhone || '');
   const [selectedDoctorId, setSelectedDoctorId] = useState(initialData?.doctorId || '');
@@ -50,19 +24,8 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'ONLINE' | 'FREE'>(initialData?.paymentMethod || 'CASH');
   const [appointmentDate, setAppointmentDate] = useState(initialData?.date || format(new Date(), 'yyyy-MM-dd'));
 
-  const handleYearsChange = (val: string) => {
-    setAgeYears(val);
-    const yStr = val ? `${val} Y` : '';
-    const mStr = ageMonths ? `${ageMonths} M` : '';
-    setPatientAge([yStr, mStr].filter(Boolean).join(' '));
-  };
-
-  const handleMonthsChange = (val: string) => {
-    setAgeMonths(val);
-    const yStr = ageYears ? `${ageYears} Y` : '';
-    const mStr = val ? `${val} M` : '';
-    setPatientAge([yStr, mStr].filter(Boolean).join(' '));
-  };
+  // Computed age string from DOB — recalculated relative to today on every render
+  const patientAge = calculateAgeFromDob(patientDob);
 
   useEffect(() => {
     const init = async () => {
@@ -96,10 +59,7 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
       
       if (match) {
         setPatientName(match.patientName);
-        setPatientAge(match.patientAge);
-        const { years, months } = parseAge(match.patientAge);
-        setAgeYears(years);
-        setAgeMonths(months);
+        setPatientDob(match.patientDob || '');
         setPatientGender(match.patientGender);
         setIsReturningPatient(true);
         // Reset the indicator after a few seconds
@@ -152,6 +112,7 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
       date: appointmentDate,
       patientName,
       patientAge,
+      patientDob,
       patientGender,
       patientPhone,
       doctorId: selectedDoctorId,
@@ -188,25 +149,17 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
                 <input value={patientName} onChange={e => setPatientName(e.target.value)} required placeholder="Full Name" />
               </div>
               <div className="form-group">
-                <label>Age</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  <input 
-                    value={ageYears} 
-                    onChange={e => handleYearsChange(e.target.value)} 
-                    required={!ageMonths} 
-                    placeholder="Years" 
-                    type="number" 
-                    min="0"
-                  />
-                  <input 
-                    value={ageMonths} 
-                    onChange={e => handleMonthsChange(e.target.value)} 
-                    placeholder="Months" 
-                    type="number" 
-                    min="0"
-                    max="11"
-                  />
-                </div>
+                <label>Date of Birth</label>
+                <input
+                  type="date"
+                  value={patientDob}
+                  onChange={e => setPatientDob(e.target.value)}
+                  max={format(new Date(), 'yyyy-MM-dd')}
+                  required
+                />
+                {patientDob && (
+                  <span className="dob-age-display">Age: {patientAge}</span>
+                )}
               </div>
               <div className="form-group">
                 <label>Gender</label>
@@ -472,6 +425,14 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
           display: flex !important;
           justify-content: space-between;
           align-items: center;
+        }
+
+        .dob-age-display {
+          display: inline-block;
+          margin-top: 0.35rem;
+          font-size: 0.78rem;
+          color: var(--primary);
+          font-weight: 600;
         }
 
         .returning-badge {

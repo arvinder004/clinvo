@@ -26,7 +26,8 @@ export interface Receipt {
   receiptNumber: string;
   date: string;
   patientName: string;
-  patientAge: string;
+  patientAge: string;       // computed display string e.g. "32 Y 6 M", kept for legacy
+  patientDob?: string;      // stored as "YYYY-MM-DD", source of truth for age
   patientGender: string;
   patientPhone: string;
   doctorId: string;
@@ -35,6 +36,27 @@ export interface Receipt {
   total: number;
   paymentMethod: 'CASH' | 'ONLINE' | 'FREE';
 }
+
+/**
+ * Calculate age string from a date-of-birth string (YYYY-MM-DD).
+ * Returns e.g. "32 Y 6 M" or "8 M" for infants.
+ */
+export const calculateAgeFromDob = (dob: string, referenceDate?: Date): string => {
+  if (!dob) return '';
+  try {
+    const birth = new Date(dob);
+    const ref = referenceDate || new Date();
+    let years = ref.getFullYear() - birth.getFullYear();
+    let months = ref.getMonth() - birth.getMonth();
+    if (ref.getDate() < birth.getDate()) months -= 1;
+    if (months < 0) { years -= 1; months += 12; }
+    if (years > 0 && months > 0) return `${years} Y ${months} M`;
+    if (years > 0) return `${years} Y`;
+    return `${months} M`;
+  } catch {
+    return '';
+  }
+};
 
 const STORAGE_KEYS = {
   DOCTORS: 'clinic_doctors',

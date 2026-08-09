@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
 import { LayoutDashboard, Users, Receipt, PlusCircle, Settings, ShieldCheck, Copy, Calendar, TrendingUp, DownloadCloud, UploadCloud, FileText, Activity, Filter, Briefcase, Printer, Trash2, Edit2, FolderOpen, Search, KeyRound, HardDrive, RotateCcw, Lock, Timer, Code2 } from 'lucide-react';
 
-import { storage, type Doctor, type Receipt as ReceiptType, type Service } from './lib/storage';
+import { storage, calculateAgeFromDob, type Doctor, type Receipt as ReceiptType, type Service } from './lib/storage';
 import './index.css';
 
 // Components
@@ -650,6 +650,9 @@ const App: React.FC = () => {
                                         <td>
                                           <div className="r-name">{r.patientName}</div>
                                           {r.patientPhone && <div className="r-ph">{r.patientPhone}</div>}
+                                          {r.patientDob && (
+                                            <div className="r-age">{calculateAgeFromDob(r.patientDob)} / {r.patientGender}</div>
+                                          )}
                                         </td>
                                         <td>
                                           <div className="r-dr">by {r.doctorName}</div>
@@ -974,7 +977,7 @@ const App: React.FC = () => {
                 <div className="info-section">
                   <h3>PATIENT DETAILS</h3>
                   <p><strong>Name:</strong> {r.patientName}</p>
-                  <p><strong>Age/Gender:</strong> {r.patientAge.includes('Y') || r.patientAge.includes('M') ? r.patientAge : `${r.patientAge}Y`} / {r.patientGender}</p>
+                  <p><strong>Age/Gender:</strong> {r.patientDob ? calculateAgeFromDob(r.patientDob) : r.patientAge} / {r.patientGender}</p>
                   <p><strong>Phone No.:</strong> {r.patientPhone || 'N/A'}</p>
                 </div>
                 <div className="info-section">
@@ -1279,6 +1282,13 @@ const App: React.FC = () => {
           font-size: 0.75rem;
           color: var(--text-muted);
           margin-top: 0.15rem;
+        }
+
+        .history-table .r-age {
+          font-size: 0.72rem;
+          color: var(--primary);
+          margin-top: 0.1rem;
+          font-weight: 500;
         }
         
         .row-checkbox {
