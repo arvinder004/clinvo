@@ -151,11 +151,6 @@ export const database = {
       items: JSON.stringify(receipt.items || [])
     });
   },
-      paymentMethod: 'CASH',
-      ...receipt,
-      items: JSON.stringify(receipt.items || [])
-    });
-  },
   deleteReceipt: (id: string) => db.prepare('DELETE FROM receipts WHERE id = ?').run(id),
 
   // Metadata (for receipt numbers, etc)

@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { LayoutDashboard, Users, Receipt, PlusCircle, Settings, ShieldCheck, Copy, Calendar, TrendingUp, DownloadCloud, UploadCloud, FileText, Activity, Filter, Briefcase, Printer, Trash2, Edit2, FolderOpen, Search, KeyRound, HardDrive, RotateCcw, Lock, Timer, Code2 } from 'lucide-react';
 
 import { storage, calculateAgeFromDob, type Doctor, type Receipt as ReceiptType, type Service } from './lib/storage';
+import HistoryPage from './components/HistoryPage';
 import './index.css';
 
 // Components
@@ -23,10 +24,16 @@ const DevLoginModal: React.FC<{ onSuccess: () => void; onClose: () => void }> = 
   const [resetPin, setResetPin] = useState('');
   const [error, setError] = useState('');
 
+  // On mount — if no dev PIN has ever been set, skip straight into developer mode
+  useEffect(() => {
+    (async () => {
+      // @ts-ignore
+      const isSet = await window.devPin.isSet();
+      if (!isSet) onSuccess();
+    })();
+  }, []);
+
   const handleLogin = async () => {
-    // @ts-ignore
-    const isSet = await window.devPin.isSet();
-    if (!isSet) { onSuccess(); return; } // no user PIN set — default always works
     // @ts-ignore
     const result = await window.devPin.verify(pin);
     if (result.success) { onSuccess(); }
@@ -123,24 +130,8 @@ const App: React.FC = () => {
   const [syncKeyInput, setSyncKeyInput] = useState('');
   const [showDevLogin, setShowDevLogin] = useState(false);
   
-  // History Filters
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [receiptsToPrint, setReceiptsToPrint] = useState<ReceiptType[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingReceipt, setEditingReceipt] = useState<ReceiptType | null>(null);
-
-  const filteredReceipts = receipts.filter(r => {
-    const rDate = r.date.split(' ')[0];
-    const afterStart = !startDate || rDate >= startDate;
-    const beforeEnd = !endDate || rDate <= endDate;
-    const matchesSearch = !searchQuery || 
-      r.patientName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (r.patientPhone && r.patientPhone.includes(searchQuery)) ||
-      r.receiptNumber.includes(searchQuery);
-    return afterStart && beforeEnd && matchesSearch;
-  });
 
   useEffect(() => {
     const checkLicense = async () => {
@@ -156,7 +147,7 @@ const App: React.FC = () => {
       if (isSet) {
         setPinState('verify');
       } else {
-        setPinState('setup');
+        setPinState('unlocked'); // no PIN set — go straight in, setup is optional from Control Center
       }
     };
 
@@ -259,27 +250,9 @@ const App: React.FC = () => {
   };
 
   const handlePrint = (input: ReceiptType | ReceiptType[]) => {
-    const receipts = Array.isArray(input) ? input : [input];
-    setReceiptsToPrint(receipts);
-    setTimeout(() => {
-      window.print();
-    }, 150);
-  };
-
-  const toggleSelection = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const clearSelection = () => setSelectedIds(new Set());
-
-  const handleBulkPrint = () => {
-    const receipts = filteredReceipts.filter(r => selectedIds.has(r.id));
-    handlePrint(receipts);
+    const toPrint = Array.isArray(input) ? input : [input];
+    setReceiptsToPrint(toPrint);
+    setTimeout(() => window.print(), 150);
   };
 
   const refreshData = async () => {
@@ -326,22 +299,23 @@ const App: React.FC = () => {
     );
   }
 
-  // PIN lock gate — shown after license check passes
+  // PIN lock gate — shown only when a PIN is set and needs to be verified
+  if (pinState === 'verify') {
+    return (
+      <PinLock
+        mode="verify"
+        onSuccess={() => setPinState('unlocked')}
+      />
+    );
+  }
+
+  // PIN setup — only shown when explicitly triggered from Control Center
   if (pinState === 'setup') {
     return (
       <PinLock
         mode="setup"
         onSuccess={() => { setPinIsSet(true); setPinState('unlocked'); }}
         onSkip={() => setPinState('unlocked')}
-      />
-    );
-  }
-
-  if (pinState === 'verify') {
-    return (
-      <PinLock
-        mode="verify"
-        onSuccess={() => setPinState('unlocked')}
       />
     );
   }
@@ -463,243 +437,14 @@ const App: React.FC = () => {
           {activeTab === 'services' && <ServiceManagement services={services} onUpdate={refreshData} isDevMode={isDevMode} />}
           {activeTab === 'new-receipt' && <ReceiptForm doctors={doctors} initialData={editingReceipt} onSave={() => { refreshData(); setEditingReceipt(null); setActiveTab('history'); }} />}
           {activeTab === 'history' && (
-              <div className="history-page">
-                <div className="card filter-card no-print">
-                  <div className="filter-header">
-                    <div className="filter-title">
-                      <div className="filter-icon-bg">
-                        <Filter size={16} />
-                      </div>
-                      <h3>Records Explorer</h3>
-                    </div>
-                    {(startDate || endDate || searchQuery) && (
-                      <button className="btn-reset" onClick={() => { setStartDate(''); setEndDate(''); setSearchQuery(''); }}>
-                        Show All Records
-                      </button>
-                    )}
-                  </div>
-                  <div className="filter-controls">
-                    <div className="range-filter-group">
-                      <div className="filter-input-wrapper">
-                        <Search size={16} className="input-icon" />
-                        <input 
-                          type="text" 
-                          placeholder="Search patient, phone, receipt..." 
-                          value={searchQuery} 
-                          onChange={e => setSearchQuery(e.target.value)}
-                        />
-                      </div>
-                      <div className="filter-input-wrapper calendar-picker">
-                        <span className="input-label-inline">From</span>
-                        <Calendar size={14} className="input-icon shifted" />
-                        <input 
-                          type="date" 
-                          value={startDate} 
-                          onChange={e => setStartDate(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                      <div className="filter-input-wrapper calendar-picker">
-                        <span className="input-label-inline">To</span>
-                        <Calendar size={14} className="input-icon shifted" />
-                        <input 
-                          type="date" 
-                          value={endDate} 
-                          onChange={e => setEndDate(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card financial-summary no-print">
-                  <div className="summary-header">
-                    <h2>Financial Summary {startDate || endDate ? `Period: ${startDate || 'Start'} to ${endDate || 'Today'}` : 'Overview'}</h2>
-                    <button className="btn-secondary" onClick={() => storage.exportToExcel()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <FileText size={16} /> Export CSV Report
-                    </button>
-                  </div>
-
-                  <div className="summary-grid">
-                    <div className="metric-card main">
-                      <div className="metric-icon"><TrendingUp size={20} /></div>
-                      <div className="metric-info">
-                        <span className="label">Period Collection</span>
-                        <span className="value">₹{filteredReceipts.reduce((sum, r) => sum + (r.paymentMethod === 'FREE' ? 0 : (Number(r.total) || 0)), 0).toLocaleString()}</span>
-                        <div className="method-breakdown">
-                          <span>Cash: ₹{filteredReceipts.filter(r => (r.paymentMethod || 'CASH') === 'CASH').reduce((sum, r) => sum + (Number(r.total) || 0), 0).toLocaleString()}</span>
-                          <span>Online: ₹{filteredReceipts.filter(r => r.paymentMethod === 'ONLINE').reduce((sum, r) => sum + (Number(r.total) || 0), 0).toLocaleString()}</span>
-                          <span>Free: {filteredReceipts.filter(r => r.paymentMethod === 'FREE').length} Visits</span>
-                        </div>
-                      </div>
-                    </div>
-                    {Object.entries(
-                      filteredReceipts.reduce((acc, r) => {
-                          const name = r.doctorName || 'General';
-                          const amount = r.paymentMethod === 'FREE' ? 0 : (Number(r.total) || 0);
-                          acc[name] = (acc[name] || 0) + amount;
-                        return acc;
-                      }, {} as Record<string, number>)
-                    ).map(([name, total]) => (
-                      <div key={name} className="metric-card doctor-metric">
-                        <div className="metric-icon secondary"><Users size={16} /></div>
-                        <div className="metric-info">
-                          <span className="label">{name}</span>
-                          <span className="value small">₹{total.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                    <div className="history-list no-print">
-                      {selectedIds.size > 0 && (
-                        <div className="bulk-action-bar anim-up">
-                          <div className="bulk-info">
-                            <span className="bulk-count">{selectedIds.size} records selected</span>
-                            <button className="btn-ghost-sm" onClick={clearSelection}>Clear Selection</button>
-                          </div>
-                          <button className="btn-primary-sm bulk-print-btn" onClick={handleBulkPrint}>
-                            <Printer size={16} /> Print Selected
-                          </button>
-                        </div>
-                      )}
-
-                      {filteredReceipts.length === 0 ? (
-                        <div className="card empty-state" style={{ textAlign: 'center', padding: '3rem' }}>
-                          <p className="text-muted">No receipts found for the selected period.</p>
-                        </div>
-                      ) : (
-                        Object.entries(
-                          filteredReceipts.reduce((acc, r) => {
-                            const dateOnly = r.date.split(' ')[0];
-                            if (!acc[dateOnly]) acc[dateOnly] = [];
-                            acc[dateOnly].push(r);
-                            return acc;
-                          }, {} as Record<string, ReceiptType[]>)
-                        )
-                        .sort((a,b) => b[0].localeCompare(a[0]))
-                        .map(([date, dateReceipts]) => {
-                          const dailyDoctorTotals = dateReceipts.reduce((acc, r) => {
-                            const name = r.doctorName || 'General';
-                            const amount = r.paymentMethod === 'FREE' ? 0 : (Number(r.total) || 0);
-                            acc[name] = (acc[name] || 0) + amount;
-                            return acc;
-                          }, {} as Record<string, number>);
-
-                          return (
-                            <div key={date} className="date-group-modern">
-                              <div className="date-header">
-                                <div className="date-info">
-                                  <Calendar size={18} />
-                                  <h3>{date}</h3>
-                                  <button 
-                                    className="btn-ghost-xs"
-                                    onClick={() => {
-                                      const ids = dateReceipts.map(r => r.id);
-                                      setSelectedIds(prev => {
-                                        const next = new Set(prev);
-                                        const allSelected = ids.every(id => next.has(id));
-                                        if (allSelected) ids.forEach(id => next.delete(id));
-                                        else ids.forEach(id => next.add(id));
-                                        return next;
-                                      });
-                                    }}
-                                  >
-                                    {dateReceipts.every(r => selectedIds.has(r.id)) ? 'Deselect All' : 'Select All'}
-                                  </button>
-                                </div>
-                                <div className="date-totals">
-                                  {Object.entries(dailyDoctorTotals).map(([name, total]) => (
-                                    <div key={name} className="dr-day-total">
-                                      {name}: <strong>₹{total.toLocaleString()}</strong>
-                                    </div>
-                                  ))}
-                                  <div className="day-sum">
-                                    Day Total: <strong>₹{dateReceipts.reduce((sum, r) => sum + (r.paymentMethod === 'FREE' ? 0 : (Number(r.total) || 0)), 0).toLocaleString()}</strong>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="receipt-items-table-container">
-                                <table className="history-table">
-                                  <thead>
-                                    <tr>
-                                      <th style={{ width: '40px' }}></th>
-                                      <th>Receipt</th>
-                                      <th>Patient</th>
-                                      <th>Doctor & Method</th>
-                                      <th className="text-right">Amount</th>
-                                      <th className="text-right">Action</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {dateReceipts.slice().reverse().map(r => (
-                                      <tr key={r.id} className={`receipt-table-row ${selectedIds.has(r.id) ? 'selected' : ''}`}>
-                                        <td className="center-cell">
-                                          <input 
-                                            type="checkbox" 
-                                            checked={selectedIds.has(r.id)}
-                                            onChange={() => toggleSelection(r.id)}
-                                            className="row-checkbox"
-                                          />
-                                        </td>
-                                        <td>
-                                          <span className="r-num">#{r.receiptNumber}</span>
-                                        </td>
-                                        <td>
-                                          <div className="r-name">{r.patientName}</div>
-                                          {r.patientPhone && <div className="r-ph">{r.patientPhone}</div>}
-                                          {r.patientDob && (
-                                            <div className="r-age">{calculateAgeFromDob(r.patientDob)} / {r.patientGender}</div>
-                                          )}
-                                        </td>
-                                        <td>
-                                          <div className="r-dr">by {r.doctorName}</div>
-                                          <span className={`payment-badge ${(r.paymentMethod || 'CASH').toLowerCase()}`}>
-                                            {r.paymentMethod || 'CASH'}
-                                          </span>
-                                        </td>
-                                        <td className="text-right">
-                                          <span className="r-amt">₹{(Number(r.total) || 0).toFixed(2)}</span>
-                                        </td>
-                                        <td className="text-right">
-                                           <div className="action-buttons">
-                                              <button 
-                                                className="btn-icon-xs print-btn" 
-                                                onClick={() => handlePrint(r)}
-                                                title="Print Receipt"
-                                              >
-                                                <Printer size={14} />
-                                              </button>
-                                              <button 
-                                                className="btn-icon-xs edit-btn" 
-                                                onClick={() => handleEditReceipt(r)}
-                                                title="Edit Receipt"
-                                              >
-                                                <Edit2 size={14} />
-                                              </button>
-                                              <button 
-                                                className="btn-icon-xs delete-btn" 
-                                                onClick={() => handleDeleteReceipt(r.id)}
-                                                title="Delete Receipt"
-                                              >
-                                                <Trash2 size={14} />
-                                              </button>
-                                           </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                )}
+            <HistoryPage
+              receipts={receipts}
+              doctors={doctors}
+              onPrint={handlePrint}
+              onEdit={handleEditReceipt}
+              onDelete={handleDeleteReceipt}
+            />
+          )}
 
           {activeTab === 'settings' && (
             <div className="control-center">
@@ -1185,171 +930,8 @@ const App: React.FC = () => {
         .content-inner { padding: 2rem; flex: 1; overflow-y: auto; }
 
         .date-group-modern { margin-bottom: 2rem; }
-
-        .date-header {
-          display: flex; justify-content: space-between; align-items: center;
-          margin-bottom: 1rem; padding: 0.75rem 0; border-bottom: 2px solid #f1f5f9;
-        }
-
-        .date-info { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); }
-        .dr-day-total { font-size: 0.75rem; color: var(--text-muted); }
-        .day-sum { font-size: 0.85rem; color: var(--text-main); font-weight: 700; }
-        
-        .btn-ghost-xs {
-          font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; color: var(--primary);
-          background: #f0f9ff; border: 1px solid #e0f2fe; margin-left: 0.75rem;
-        }
-
-        .btn-icon-xs:hover { color: var(--primary); border-color: var(--primary); background: #f0f9ff; }
-
-        .bulk-action-bar {
-          position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between;
-          align-items: center; background: #0ea5e9; color: white; padding: 0.5rem 1.5rem; border-radius: 0 0 12px 12px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-          margin-bottom: 1.5rem; animation: slideDown 0.2s ease;
-        }
-
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
-
-        .bulk-info { display: flex; align-items: center; gap: 1rem; }
-        .bulk-count { font-weight: 600; font-size: 0.85rem; }
-        .btn-ghost-sm { font-size: 0.8rem; color: rgba(255,255,255,0.8); }
-        .btn-ghost-sm:hover { color: white; }
-        .btn-primary-sm { background: white; color: #0ea5e9; padding: 0.4rem 1rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
-
-        .r-num { color: var(--text-muted); font-size: 0.75rem; font-family: monospace; }
-        .r-name { font-weight: 600; color: var(--text-main); font-size: 0.95rem; }
-        .r-dr { font-size: 0.85rem; color: var(--text-muted); }
-        .r-amt { font-weight: 700; color: var(--text-main); font-size: 1rem; }
-
-        .btn-icon-xs {
-          width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-          border-radius: 6px; border: 1px solid #e2e8f0; color: #64748b; background: white; transition: all 0.2s;
-        }
-
-        .receipt-items-table-container {
-          background: white;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          overflow: hidden;
-        }
-
-        .history-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 0.9rem;
-        }
-
-        .history-table th {
-          background: #f8fafc;
-          padding: 0.75rem 1rem;
-          text-align: left;
-          font-weight: 600;
-          color: var(--text-muted);
-          border-bottom: 2px solid var(--border);
-          font-size: 0.8rem;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .history-table td {
-          padding: 0.85rem 1rem;
-          border-bottom: 1px solid var(--border);
-          vertical-align: middle;
-        }
-
-        .receipt-table-row {
-          transition: background 0.2s;
-        }
-
-        .receipt-table-row:last-child td {
-          border-bottom: none;
-        }
-
-        .receipt-table-row:hover {
-          background: #f8fafc;
-        }
-
-        .receipt-table-row.selected {
-          background: #f0f9ff;
-        }
-
-        .history-table .center-cell {
-          text-align: center;
-        }
-
-        .history-table .r-ph {
-          font-size: 0.75rem;
-          color: var(--text-muted);
-          margin-top: 0.15rem;
-        }
-
-        .history-table .r-age {
-          font-size: 0.72rem;
-          color: var(--primary);
-          margin-top: 0.1rem;
-          font-weight: 500;
-        }
-        
-        .row-checkbox {
-          width: 16px;
-          height: 16px;
-          cursor: pointer;
-        }
-
-        .filter-card {
-          margin-bottom: 2rem; padding: 1.5rem; background: white; border-radius: 12px;
-          border: 1px solid var(--border); position: relative;
-        }
-        .filter-card::after { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary); }
-        .filter-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-        .filter-title { display: flex; align-items: center; gap: 0.75rem; }
-        .filter-icon-bg { background: #e0f2fe; color: var(--primary); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
-        .btn-reset { background: #fee2e2; color: #ef4444; font-size: 0.75rem; font-weight: 600; padding: 0.4rem 0.8rem; border-radius: 6px; }
-        .filter-input-wrapper { position: relative; display: flex; align-items: center; flex: 1; min-width: 140px; }
-        .filter-input-wrapper .input-icon { position: absolute; left: 1rem; color: var(--text-muted); pointer-events: none; z-index: 1; transition: all 0.2s; }
-        .filter-input-wrapper .input-icon.shifted { left: 4.5rem; }
-        
-        .input-label-inline {
-          position: absolute; left: 1rem; font-size: 0.75rem; font-weight: 700; color: var(--primary);
-          text-transform: uppercase; letter-spacing: 0.05em; z-index: 1; pointer-events: none;
-        }
-
-        .filter-input-wrapper select, 
-        .filter-input-wrapper input, 
-        .filter-input-wrapper .date-input {
-          padding-left: 2.75rem; width: 100%; border: 1px solid var(--border); border-radius: 8px; height: 44px;
-          font-family: 'Outfit', sans-serif; font-size: 0.95rem; color: var(--text-main);
-          background: white; transition: all 0.2s; cursor: pointer;
-        }
-        
-        .calendar-picker .date-input { padding-left: 6.25rem; }
-        
-        .filter-input-wrapper .date-input:hover { border-color: var(--primary); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .filter-input-wrapper .date-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
-        
-        .range-filter-group { display: flex; gap: 1rem; width: 100%; }
-
-        .btn-reset { 
-          background: #f1f5f9; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; 
-          padding: 0.5rem 1rem; border-radius: 8px; transition: all 0.2s; border: 1px solid var(--border);
-        }
         .btn-reset:hover { background: #fee2e2; color: #ef4444; border-color: #fecaca; }
         .summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-        .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
-        .metric-card { display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f8fafc; border-radius: 12px; border: 1px solid var(--border); }
-        .metric-card.main { background: var(--primary); color: white; border: none; }
-        .metric-icon { width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-        .metric-icon.secondary { background: #e0f2fe; color: var(--primary); }
-        .metric-info { display: flex; flex-direction: column; }
-        .metric-info .label { font-size: 0.7rem; opacity: 0.8; }
-        .metric-info .value { font-size: 1.1rem; font-weight: 700; }
-
-        .r-services { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-        .service-tag {
-          font-size: 0.7rem; color: #64748b; background: #f1f5f9; padding: 0.1rem 0.4rem;
-          border-radius: 4px; font-weight: 500;
-        }
 
         .control-grid { 
           display: grid; 

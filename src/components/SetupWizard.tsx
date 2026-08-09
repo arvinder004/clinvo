@@ -129,6 +129,71 @@ const DevPinSetup: React.FC<{ onSet: () => void; onSkip: () => void }> = ({ onSe
           <span>Developer PIN is stored securely on this device</span>
         </div>
       </div>
+
+      <style>{`
+        .wizard-overlay {
+          position: fixed; inset: 0; background: #f1f5f9;
+          display: flex; align-items: center; justify-content: center;
+          z-index: 9999; font-family: 'Inter', sans-serif;
+        }
+        .pin-card {
+          background: white; border-radius: 24px; padding: 2.5rem 2.25rem;
+          width: 100%; max-width: 400px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;
+          display: flex; flex-direction: column; align-items: center;
+        }
+        .wizard-progress { display: flex; justify-content: center; gap: 0.5rem; }
+        .wizard-step-dot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; transition: all 0.2s; }
+        .wizard-step-dot.active { background: #2563eb; width: 24px; border-radius: 4px; }
+        .wizard-step-dot.done { background: #86efac; }
+        .pin-header { text-align: center; margin-bottom: 1.5rem; }
+        .pin-icon-badge {
+          width: 64px; height: 64px; border-radius: 18px;
+          display: flex; align-items: center; justify-content: center;
+          margin: 0 auto 1rem;
+        }
+        .pin-header h1 { font-size: 1.4rem; font-weight: 700; color: #0f172a; margin: 0 0 0.4rem; }
+        .pin-header p { font-size: 0.875rem; color: #64748b; margin: 0; line-height: 1.5; }
+        .pin-dots { display: flex; gap: 1rem; margin-bottom: 0.75rem; }
+        .pin-dot {
+          width: 16px; height: 16px; border-radius: 50%;
+          border: 2px solid #cbd5e1; background: white; transition: all 0.15s;
+        }
+        .pin-dot.filled { background: #2563eb; border-color: #2563eb; transform: scale(1.15); }
+        .pin-error-area { min-height: 1.25rem; margin-bottom: 0.75rem; }
+        .pin-error { font-size: 0.8rem; color: #ef4444; text-align: center; }
+        .pin-numpad {
+          display: grid; grid-template-columns: repeat(3, 72px);
+          gap: 0.75rem; margin-bottom: 1.25rem;
+        }
+        .pin-key {
+          width: 72px; height: 72px; border-radius: 50%; font-size: 1.4rem; font-weight: 600;
+          background: #f8fafc; border: 1px solid #e2e8f0; color: #0f172a;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: all 0.1s; user-select: none;
+        }
+        .pin-key:hover { background: #f1f5f9; transform: scale(1.05); }
+        .pin-key.pressed { background: #dbeafe; border-color: #2563eb; transform: scale(0.95); }
+        .pin-key.delete-key { background: #fef2f2; border-color: #fecaca; color: #ef4444; }
+        .pin-key.empty { background: transparent; border: none; pointer-events: none; }
+        .pin-keyboard-hint { font-size: 0.75rem; color: #94a3b8; margin-bottom: 1rem; }
+        .pin-skip-btn {
+          font-size: 0.85rem; color: #64748b; background: none; border: none;
+          cursor: pointer; text-decoration: underline; margin-bottom: 1.25rem;
+          text-underline-offset: 3px;
+        }
+        .pin-skip-btn:hover { color: #0f172a; }
+        .pin-footer {
+          display: flex; align-items: center; gap: 0.4rem;
+          font-size: 0.75rem; color: #94a3b8;
+        }
+        .shake { animation: shake 0.4s ease; }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-8px); }
+          40%, 80% { transform: translateX(8px); }
+        }
+      `}</style>
     </div>
   );
 };
