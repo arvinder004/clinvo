@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, KeyRound, ShieldCheck, CheckCircle2, ArrowRight, ChevronRight, Code2, Delete } from 'lucide-react';
 import PinLock from './PinLock';
 
