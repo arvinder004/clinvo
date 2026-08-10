@@ -338,6 +338,57 @@ ipcMain.handle('backup-open-folder', () => {
   shell.openPath(BACKUP_DIR)
 })
 
+// ─── PDF Export ───────────────────────────────────────────────────────────────
+
+ipcMain.handle('save-pdf', async (event) => {
+  const { dialog } = await import('electron')
+  const { filePath, canceled } = await dialog.showSaveDialog({
+    title: 'Save Receipt as PDF',
+    defaultPath: `receipt_${new Date().toISOString().slice(0,10)}.pdf`,
+    filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+  })
+  if (canceled || !filePath) return { success: false }
+
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return { success: false, error: 'No window' }
+
+  try {
+    // Show print-only elements and hide screen elements before capture
+    await win.webContents.executeJavaScript(`
+      document.body.classList.add('pdf-capture');
+      void 0;
+    `)
+
+    // Small delay for React to re-render with the new class applied
+    await new Promise(r => setTimeout(r, 100))
+
+    const data = await win.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      marginsType: 0,
+    })
+
+    // Restore normal view
+    await win.webContents.executeJavaScript(`
+      document.body.classList.remove('pdf-capture');
+      void 0;
+    `)
+
+    fs.writeFileSync(filePath, data)
+    shell.showItemInFolder(filePath)
+    return { success: true, filePath }
+  } catch (err: any) {
+    // Always restore on error
+    try {
+      await win.webContents.executeJavaScript(`
+        document.body.classList.remove('pdf-capture');
+        void 0;
+      `)
+    } catch {}
+    return { success: false, error: err.message }
+  }
+})
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1280,

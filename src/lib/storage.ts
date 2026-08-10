@@ -15,6 +15,14 @@ export interface ReceiptItem {
   amount: number;
 }
 
+export interface Medicine {
+  id: string;
+  name: string;
+  dosage: string;
+  duration: string;
+  instructions: string;
+}
+
 export interface Service {
   id: string;
   name: string;
@@ -26,12 +34,14 @@ export interface Receipt {
   receiptNumber: string;
   date: string;
   patientName: string;
-  patientAge: string;       // computed display string e.g. "32 Y 6 M", kept for legacy
-  patientDob?: string;      // stored as "YYYY-MM-DD", source of truth for age
+  patientAge: string;
+  patientDob?: string;
   patientGender: string;
   patientPhone: string;
   doctorId: string;
   doctorName: string;
+  diagnosis?: string;
+  medicines?: Medicine[];
   items: ReceiptItem[];
   total: number;
   paymentMethod: 'CASH' | 'ONLINE' | 'FREE';

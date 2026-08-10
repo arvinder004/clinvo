@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Search, Printer, Edit2, Trash2, Calendar, Users, TrendingUp,
-  FileText, Filter, User, Phone, Stethoscope, BarChart2, ChevronDown, ChevronRight
+  Search, Printer, Edit2, Trash2, Calendar, TrendingUp,
+  FileText, User, Stethoscope, ChevronDown, ChevronRight, Download
 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval } from 'date-fns';
+import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { calculateAgeFromDob, type Doctor, type Receipt } from '../lib/storage';
 import { storage } from '../lib/storage';
 
@@ -17,6 +17,7 @@ interface Props {
   receipts: Receipt[];
   doctors: Doctor[];
   onPrint: (receipts: Receipt | Receipt[]) => void;
+  onDownload: (receipts: Receipt | Receipt[]) => void;
   onEdit: (receipt: Receipt) => void;
   onDelete: (id: string) => void;
 }
@@ -32,11 +33,12 @@ const billable = (r: Receipt) => r.paymentMethod === 'FREE' ? 0 : (Number(r.tota
 const ReceiptRow: React.FC<{
   r: Receipt;
   onPrint: (r: Receipt) => void;
+  onDownload: (r: Receipt) => void;
   onEdit: (r: Receipt) => void;
   onDelete: (id: string) => void;
   showPatient?: boolean;
   showDoctor?: boolean;
-}> = ({ r, onPrint, onEdit, onDelete, showPatient = true, showDoctor = true }) => (
+}> = ({ r, onPrint, onDownload, onEdit, onDelete, showPatient = true, showDoctor = true }) => (
   <tr className="receipt-table-row">
     <td><span className="r-num">#{r.receiptNumber}</span><div className="r-date-small">{rDate(r)}</div></td>
     {showPatient && (
@@ -59,6 +61,7 @@ const ReceiptRow: React.FC<{
     <td className="text-right">
       <div className="action-buttons">
         <button className="btn-icon-xs print-btn" onClick={() => onPrint(r)} title="Print"><Printer size={14} /></button>
+        <button className="btn-icon-xs print-btn" onClick={() => onDownload(r)} title="Download PDF"><Download size={14} /></button>
         <button className="btn-icon-xs edit-btn" onClick={() => onEdit(r)} title="Edit"><Edit2 size={14} /></button>
         <button className="btn-icon-xs delete-btn" onClick={() => onDelete(r.id)} title="Delete"><Trash2 size={14} /></button>
       </div>
@@ -100,11 +103,12 @@ const GroupBlock: React.FC<{
 const ReceiptTable: React.FC<{
   rows: Receipt[];
   onPrint: (r: Receipt) => void;
+  onDownload: (r: Receipt) => void;
   onEdit: (r: Receipt) => void;
   onDelete: (id: string) => void;
   showPatient?: boolean;
   showDoctor?: boolean;
-}> = ({ rows, onPrint, onEdit, onDelete, showPatient = true, showDoctor = true }) => (
+}> = ({ rows, onPrint, onDownload, onEdit, onDelete, showPatient = true, showDoctor = true }) => (
   <div className="receipt-items-table-container">
     <table className="history-table">
       <thead>
@@ -124,6 +128,7 @@ const ReceiptTable: React.FC<{
             key={r.id}
             r={r}
             onPrint={onPrint}
+            onDownload={onDownload}
             onEdit={onEdit}
             onDelete={onDelete}
             showPatient={showPatient}
@@ -141,9 +146,10 @@ const PatientView: React.FC<{
   receipts: Receipt[];
   subView: PatientSubView;
   onPrint: (r: Receipt) => void;
+  onDownload: (r: Receipt) => void;
   onEdit: (r: Receipt) => void;
   onDelete: (id: string) => void;
-}> = ({ receipts, subView, onPrint, onEdit, onDelete }) => {
+}> = ({ receipts, subView, onPrint, onDownload, onEdit, onDelete }) => {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -161,8 +167,8 @@ const PatientView: React.FC<{
     filtered.forEach(r => {
       const key =
         subView === 'by-name' ? r.patientName :
-        subView === 'by-phone' ? (r.patientPhone || 'No Phone') :
-        (r.doctorName || 'General');
+          subView === 'by-phone' ? (r.patientPhone || 'No Phone') :
+            (r.doctorName || 'General');
       if (!acc[key]) acc[key] = [];
       acc[key].push(r);
     });
@@ -178,8 +184,8 @@ const PatientView: React.FC<{
         <input
           placeholder={
             subView === 'by-name' ? 'Search by patient name…' :
-            subView === 'by-phone' ? 'Search by phone number…' :
-            'Search by doctor or patient…'
+              subView === 'by-phone' ? 'Search by phone number…' :
+                'Search by doctor or patient…'
           }
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -200,6 +206,7 @@ const PatientView: React.FC<{
           <ReceiptTable
             rows={rows.slice().sort((a, b) => rDate(b).localeCompare(rDate(a)))}
             onPrint={onPrint}
+            onDownload={onDownload}
             onEdit={onEdit}
             onDelete={onDelete}
             showPatient={subView === 'by-doctor'}
@@ -217,9 +224,10 @@ const FinancialView: React.FC<{
   receipts: Receipt[];
   subView: FinancialSubView;
   onPrint: (r: Receipt) => void;
+  onDownload: (r: Receipt) => void;
   onEdit: (r: Receipt) => void;
   onDelete: (id: string) => void;
-}> = ({ receipts, subView, onPrint, onEdit, onDelete }) => {
+}> = ({ receipts, subView, onPrint, onDownload, onEdit, onDelete }) => {
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
 
@@ -329,6 +337,7 @@ const FinancialView: React.FC<{
           <ReceiptTable
             rows={rows.slice().sort((a, b) => rDate(b).localeCompare(rDate(a)))}
             onPrint={onPrint}
+            onDownload={onDownload}
             onEdit={onEdit}
             onDelete={onDelete}
           />
@@ -346,9 +355,10 @@ const DoctorView: React.FC<{
   receipts: Receipt[];
   doctors: Doctor[];
   onPrint: (r: Receipt) => void;
+  onDownload: (r: Receipt) => void;
   onEdit: (r: Receipt) => void;
   onDelete: (id: string) => void;
-}> = ({ receipts, doctors, onPrint, onEdit, onDelete }) => {
+}> = ({ receipts, doctors, onPrint, onDownload, onEdit, onDelete }) => {
   const [search, setSearch] = useState('');
 
   const groups: Record<string, Receipt[]> = useMemo(() => {
@@ -420,6 +430,7 @@ const DoctorView: React.FC<{
               <ReceiptTable
                 rows={rows.slice().sort((a, b) => rDate(b).localeCompare(rDate(a)))}
                 onPrint={onPrint}
+                onDownload={onDownload}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 showDoctor={false}
@@ -456,19 +467,19 @@ const SubTabs: React.FC<{
 
 // ─── Main HistoryPage ─────────────────────────────────────────────────────────
 
-const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onEdit, onDelete }) => {
+const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, onEdit, onDelete }) => {
   const [view, setView] = useState<HistoryView>('patient');
   const [patientSub, setPatientSub] = useState<PatientSubView>('by-name');
   const [financialSub, setFinancialSub] = useState<FinancialSubView>('by-month');
 
   const topTabs: { value: HistoryView; label: string; icon: React.ReactNode }[] = [
-    { value: 'patient',   label: 'Patient History',   icon: <User size={16} /> },
-    { value: 'financial', label: 'Financial History',  icon: <TrendingUp size={16} /> },
-    { value: 'doctor',    label: 'Doctor History',     icon: <Stethoscope size={16} /> },
+    { value: 'patient', label: 'Patient History', icon: <User size={16} /> },
+    { value: 'financial', label: 'Financial History', icon: <TrendingUp size={16} /> },
+    { value: 'doctor', label: 'Doctor History', icon: <Stethoscope size={16} /> },
   ];
 
   return (
-    <div className="history-page">
+    <div className="history-page no-print">
       {/* Top-level tabs */}
       <div className="hist-top-tabs">
         {topTabs.map(t => (
@@ -487,8 +498,8 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onEdit, onDe
       {view === 'patient' && (
         <SubTabs
           options={[
-            { value: 'by-name',   label: 'By Patient Name' },
-            { value: 'by-phone',  label: 'By Phone Number' },
+            { value: 'by-name', label: 'By Patient Name' },
+            { value: 'by-phone', label: 'By Phone Number' },
             { value: 'by-doctor', label: 'By Doctor' },
           ]}
           active={patientSub}
@@ -501,7 +512,7 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onEdit, onDe
         <SubTabs
           options={[
             { value: 'by-month', label: 'By Month' },
-            { value: 'by-week',  label: 'By Week' },
+            { value: 'by-week', label: 'By Week' },
             { value: 'by-range', label: 'Date Range' },
           ]}
           active={financialSub}
@@ -515,6 +526,7 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onEdit, onDe
           receipts={receipts}
           subView={patientSub}
           onPrint={onPrint}
+          onDownload={onDownload}
           onEdit={onEdit}
           onDelete={onDelete}
         />
@@ -524,6 +536,7 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onEdit, onDe
           receipts={receipts}
           subView={financialSub}
           onPrint={onPrint}
+          onDownload={onDownload}
           onEdit={onEdit}
           onDelete={onDelete}
         />
@@ -533,6 +546,7 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onEdit, onDe
           receipts={receipts}
           doctors={doctors}
           onPrint={onPrint}
+          onDownload={onDownload}
           onEdit={onEdit}
           onDelete={onDelete}
         />

@@ -31,11 +31,12 @@ export const excelStorage = {
       const metaWS = XLSX.utils.json_to_sheet([{ lastReceiptNum: data.lastReceiptNum }]);
       XLSX.utils.book_append_sheet(workbook, metaWS, 'Metadata');
 
-      XLSX.writeFile(workbook, EXCEL_PATH);
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      fs.writeFileSync(EXCEL_PATH, buffer);
       return { success: true, path: EXCEL_PATH };
     } catch (error: any) {
       console.error('Excel Save Error:', error);
-      if (error.code === 'EBUSY' || error.message.includes('EBUSY')) {
+      if (error.code === 'EBUSY' || error.message?.includes('EBUSY') || error.message?.includes('cannot save file')) {
         return { success: false, error: 'The Excel file is currently open in another program. Please close it and try again.' };
       }
       return { success: false, error: error.message };
@@ -46,7 +47,8 @@ export const excelStorage = {
     try {
       if (!fs.existsSync(EXCEL_PATH)) return null;
 
-      const workbook = XLSX.readFile(EXCEL_PATH);
+      const buffer = fs.readFileSync(EXCEL_PATH);
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
       
       const doctors = XLSX.utils.sheet_to_json(workbook.Sheets['Doctors']);
       const services = XLSX.utils.sheet_to_json(workbook.Sheets['Services']);

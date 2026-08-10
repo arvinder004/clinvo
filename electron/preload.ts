@@ -79,3 +79,7 @@ contextBridge.exposeInMainWorld('backup', {
   openFolder: () => ipcRenderer.invoke('backup-open-folder'),
 })
 
+contextBridge.exposeInMainWorld('pdf', {
+  save: () => ipcRenderer.invoke('save-pdf'),
+})
+

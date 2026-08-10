@@ -58,9 +58,12 @@ export const database = {
     // Migrate: add patientDob column if it doesn't exist yet (safe on existing DBs)
     try {
       db.exec(`ALTER TABLE receipts ADD COLUMN patientDob TEXT;`);
-    } catch (_e) {
-      // Column already exists — ignore
-    }
+    } catch (_e) { /* already exists */ }
+
+    // Migrate: add diagnosis column if it doesn't exist yet
+    try {
+      db.exec(`ALTER TABLE receipts ADD COLUMN diagnosis TEXT;`);
+    } catch (_e) { /* already exists */ }
   },
 
   getDbPath: () => {
@@ -107,8 +110,8 @@ export const database = {
   },
   saveReceipt: (receipt: any) => {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO receipts (id, receiptNumber, date, patientName, patientAge, patientDob, patientGender, patientPhone, doctorId, doctorName, items, total, paymentMethod)
-      VALUES (@id, @receiptNumber, @date, @patientName, @patientAge, @patientDob, @patientGender, @patientPhone, @doctorId, @doctorName, @items, @total, @paymentMethod)
+      INSERT OR REPLACE INTO receipts (id, receiptNumber, date, patientName, patientAge, patientDob, patientGender, patientPhone, doctorId, doctorName, diagnosis, items, total, paymentMethod)
+      VALUES (@id, @receiptNumber, @date, @patientName, @patientAge, @patientDob, @patientGender, @patientPhone, @doctorId, @doctorName, @diagnosis, @items, @total, @paymentMethod)
     `);
     return stmt.run({
       patientAge: '',
@@ -117,6 +120,7 @@ export const database = {
       patientPhone: '',
       doctorId: '',
       doctorName: '',
+      diagnosis: '',
       paymentMethod: 'CASH',
       ...receipt,
       items: JSON.stringify(receipt.items || [])
@@ -124,7 +128,7 @@ export const database = {
   },
   updateReceipt: (receipt: any) => {
     const stmt = db.prepare(`
-      UPDATE receipts SET 
+      UPDATE receipts SET
         receiptNumber = @receiptNumber,
         date = @date,
         patientName = @patientName,
@@ -134,6 +138,7 @@ export const database = {
         patientPhone = @patientPhone,
         doctorId = @doctorId,
         doctorName = @doctorName,
+        diagnosis = @diagnosis,
         items = @items,
         total = @total,
         paymentMethod = @paymentMethod
@@ -146,6 +151,7 @@ export const database = {
       patientPhone: '',
       doctorId: '',
       doctorName: '',
+      diagnosis: '',
       paymentMethod: 'CASH',
       ...receipt,
       items: JSON.stringify(receipt.items || [])

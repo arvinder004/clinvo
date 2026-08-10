@@ -15,7 +15,7 @@ bugs:
         - by week
         - by date range
     view the doctor history as:
-        - to decide
+        - to decide (done)
 
     - change the receipt form layout make it more easy
         - current bug:

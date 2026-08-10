@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { format } from 'date-fns';
-import { LayoutDashboard, Users, Receipt, PlusCircle, Settings, ShieldCheck, Copy, Calendar, TrendingUp, DownloadCloud, UploadCloud, FileText, Activity, Filter, Briefcase, Printer, Trash2, Edit2, FolderOpen, Search, KeyRound, HardDrive, RotateCcw, Lock, Timer, Code2 } from 'lucide-react';
+import { LayoutDashboard, Users, Receipt, PlusCircle, Settings, ShieldCheck, Copy, DownloadCloud, UploadCloud, FileText, Activity, Briefcase, FolderOpen, KeyRound, HardDrive, RotateCcw, Lock, Timer, Code2 } from 'lucide-react';
 
-import { storage, calculateAgeFromDob, type Doctor, type Receipt as ReceiptType, type Service } from './lib/storage';
+import { storage, type Doctor, type Receipt as ReceiptType, type Service } from './lib/storage';
 import HistoryPage from './components/HistoryPage';
+import ReceiptPrint from './components/ReceiptPrint';
 import './index.css';
 
 // Components
@@ -255,6 +255,19 @@ const App: React.FC = () => {
     setTimeout(() => window.print(), 150);
   };
 
+  const handleDownload = async (input: ReceiptType | ReceiptType[]) => {
+    const toPrint = Array.isArray(input) ? input : [input];
+    setReceiptsToPrint(toPrint);
+    await new Promise(res => setTimeout(res, 250));
+    try {
+      // @ts-ignore
+      const result = await window.pdf.save();
+      if (!result.success && result.error) alert('PDF error: ' + result.error);
+    } finally {
+      setReceiptsToPrint(null);
+    }
+  };
+
   const refreshData = async () => {
     const [d, s, r] = await Promise.all([
       storage.getDoctors(),
@@ -270,13 +283,6 @@ const App: React.FC = () => {
     if (confirm('Are you sure you want to delete this receipt? This action cannot be undone.')) {
       storage.deleteReceipt(id);
       refreshData();
-      if (selectedIds.has(id)) {
-        setSelectedIds(prev => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }
     }
   };
 
@@ -362,8 +368,6 @@ const App: React.FC = () => {
             <LayoutDashboard size={20} />
             <span>Dashboard</span>
           </button>
-
-          <div className="nav-divider" />
           
           <button 
             className={`nav-item ${activeTab === 'new-receipt' ? 'active' : ''}`}
@@ -431,16 +435,17 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="content-inner">
+        <div className={`content-inner${activeTab === 'new-receipt' ? ' content-inner-flush' : ''}`}>
           {activeTab === 'dashboard' && <Dashboard doctors={doctors} receipts={receipts} onNewReceipt={() => { setEditingReceipt(null); setActiveTab('new-receipt'); }} />}
           {activeTab === 'doctors' && <DoctorManagement doctors={doctors} onUpdate={refreshData} isDevMode={isDevMode} />}
           {activeTab === 'services' && <ServiceManagement services={services} onUpdate={refreshData} isDevMode={isDevMode} />}
-          {activeTab === 'new-receipt' && <ReceiptForm doctors={doctors} initialData={editingReceipt} onSave={() => { refreshData(); setEditingReceipt(null); setActiveTab('history'); }} />}
+          {activeTab === 'new-receipt' && <ReceiptForm doctors={doctors} initialData={editingReceipt} onSave={() => { refreshData(); }} />}
           {activeTab === 'history' && (
             <HistoryPage
               receipts={receipts}
               doctors={doctors}
               onPrint={handlePrint}
+              onDownload={handleDownload}
               onEdit={handleEditReceipt}
               onDelete={handleDeleteReceipt}
             />
@@ -695,99 +700,16 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Hidden Print Template for History (Supports Multi-Receipts) */}
+      {/* Print Template for History — uses ReceiptPrint component, marked as duplicate */}
       {receiptsToPrint.length > 0 && (
-        <div id="receipt-print-template" className="print-only">
-          {receiptsToPrint.map((r, idx) => (
-            <div key={r.id} className="print-container page-break">
-              <div className="print-header">
-                <div className="print-clinic-branding">
-                  <h2>{doctors.find(d => d.id === r.doctorId)?.name || r.doctorName}</h2>
-                  <p className="clinic-tagline" style={{ marginTop: '5px', whiteSpace: 'pre-wrap' }}>
-                    {doctors.find(d => d.id === r.doctorId)?.address || ''}
-                  </p>
-                </div>
-                <div className="print-clinic-address">
-                  <p style={{ fontWeight: 700 }}>{doctors.find(d => d.id === r.doctorId)?.qualifications || ''}</p>
-                  <p>{doctors.find(d => d.id === r.doctorId)?.specialization || ''}</p>
-                  <p>Ph: {doctors.find(d => d.id === r.doctorId)?.phone || ''}</p>
-                </div>
-              </div>
-
-              <div className="print-title-bar">
-                <h1>PAYMENT RECEIPT (DUPLICATE)</h1>
-              </div>
-
-              <div className="print-info-grid">
-                <div className="info-section">
-                  <h3>PATIENT DETAILS</h3>
-                  <p><strong>Name:</strong> {r.patientName}</p>
-                  <p><strong>Age/Gender:</strong> {r.patientDob ? calculateAgeFromDob(r.patientDob) : r.patientAge} / {r.patientGender}</p>
-                  <p><strong>Phone No.:</strong> {r.patientPhone || 'N/A'}</p>
-                </div>
-                <div className="info-section">
-                  <h3>BILL DETAILS</h3>
-                  <p><strong>Receipt #:</strong> {r.receiptNumber}</p>
-                  <p><strong>Original Date:</strong> {(() => {
-                    try {
-                      return format(new Date(r.date), 'dd MMM yyyy');
-                    } catch (e) {
-                      return r.date || 'N/A';
-                    }
-                  })()}</p>
-                  <p><strong>Payment Mode:</strong> {r.paymentMethod || 'CASH'}</p>
-                </div>
-              </div>
-
-              <table className="print-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}>Sr.</th>
-                    <th>Description of Services</th>
-                    <th className="text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.items.map((item, index) => (
-                    <tr key={item.id}>
-                      <td>{index + 1}</td>
-                      <td>{item.description}</td>
-                      <td className="text-right">₹{(r.paymentMethod === 'FREE' ? 0 : (Number(item.amount) || 0)).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <th colSpan={2} className="text-right">Total Payable Amount:</th>
-                    <th className="text-right">₹{(Number(r.total) || 0).toFixed(2)}</th>
-                  </tr>
-                </tfoot>
-              </table>
-
-              <div className="print-amount-words">
-                <p><strong>Total in words:</strong> Rupee {(Number(r.total) || 0).toLocaleString()} Only</p>
-              </div>
-
-              <div className="print-footer">
-                <div className="terms">
-                  <p>• This is a computer-generated duplicate receipt.</p>
-                  <p>• Original date of service: {(() => {
-                    try {
-                      return format(new Date(r.date), 'dd MMM yyyy');
-                    } catch (e) {
-                      return r.date || 'N/A';
-                    }
-                  })()}</p>
-                  {receiptsToPrint.length > 1 && (
-                    <p className="print-page-info">Receipt {idx + 1} of {receiptsToPrint.length}</p>
-                  )}
-                </div>
-                <div className="signature-box">
-                  <div className="signature-line"></div>
-                  <p>Authorized Signatory</p>
-                </div>
-              </div>
-            </div>
+        <div className="print-only">
+          {receiptsToPrint.map(r => (
+            <ReceiptPrint
+              key={r.id}
+              receipt={r}
+              doctor={doctors.find(d => d.id === r.doctorId)}
+              isDuplicate={true}
+            />
           ))}
         </div>
       )}
@@ -869,10 +791,11 @@ const App: React.FC = () => {
         .logo {
           display: flex; align-items: center; gap: 0.75rem; font-family: 'Outfit', sans-serif;
           font-weight: 700; font-size: 1.5rem; color: var(--primary);
+          margin-bottom: 2rem;
         }
 
         .logo-img {
-          width: 32px; height: 32px; border-radius: 8px; object-fit: contain;
+          width: 44px; height: 44px; border-radius: 10px; object-fit: contain;
         }
 
         .action-buttons {
@@ -928,6 +851,7 @@ const App: React.FC = () => {
         }
 
         .content-inner { padding: 2rem; flex: 1; overflow-y: auto; }
+        .content-inner-flush { padding: 0 !important; overflow: hidden; }
 
         .date-group-modern { margin-bottom: 2rem; }
         .btn-reset:hover { background: #fee2e2; color: #ef4444; border-color: #fecaca; }
