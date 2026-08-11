@@ -642,22 +642,12 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
         .rf-td-del { text-align: center; }
 
         /* Service combobox */
-        .svc-wrap { position: relative; }
+        .svc-wrap { position: relative; width: 100%; }
         .svc-in {
-          width: 100%; padding: 2pt 18pt 2pt 4pt; border: none; background: transparent;
+          width: 100%; padding: 2pt 4pt; border: none; background: transparent;
           font-family: inherit; font-size: 9pt; color: #111;
         }
         .svc-in:focus { outline: none; background: #f0f9ff; }
-        .svc-chev { position: absolute; right: 3pt; top: 50%; transform: translateY(-50%); color: #9ca3af; cursor: pointer; }
-        .svc-drop {
-          position: absolute; top: calc(100% + 2pt); left: 0; right: 0;
-          background: white; border: 1pt solid #d1d5db; border-radius: 4pt;
-          box-shadow: 0 6px 20px rgba(0,0,0,0.12); z-index: 200;
-          max-height: 150pt; overflow-y: auto; font-family: sans-serif;
-        }
-        .svc-opt { display: flex; justify-content: space-between; padding: 5pt 8pt; font-size: 8.5pt; cursor: pointer; }
-        .svc-opt:hover { background: #f0f9ff; }
-        .svc-opt-amt { color: #0ea5e9; font-weight: 600; }
 
         .rf-amt-in {
           width: 100%; padding: 2pt 4pt; border: none; background: transparent;
