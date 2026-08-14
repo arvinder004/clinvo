@@ -1,39 +1,16 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
-// --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
-  },
+// Removed raw ipcRenderer exposure for security (enforcing strict contextIsolation)
 
-  // You can expose other apts you need here.
-  // ...
+contextBridge.exposeInMainWorld('recoveryKey', {
+  get: () => ipcRenderer.invoke('get-recovery-key'),
+  generate: () => ipcRenderer.invoke('generate-recovery-key'),
 })
 
 contextBridge.exposeInMainWorld('licensing', {
-  getMachineID: () => ipcRenderer.invoke('get-machine-id'),
-  checkActivation: () => ipcRenderer.invoke('check-activation'),
-  activateLicense: (key: string) => ipcRenderer.invoke('activate-license', key),
-  devGenerateKey: (mid: string) => ipcRenderer.invoke('dev-generate-key', mid),
-})
-
-contextBridge.exposeInMainWorld('excelStorage', {
-  saveData: (data: any) => ipcRenderer.invoke('save-to-excel', data),
-  loadData: () => ipcRenderer.invoke('load-from-excel'),
-  openFile: () => ipcRenderer.invoke('open-excel-file'),
+  getStatus: () => ipcRenderer.invoke('licensing-get-status'),
+  activate: (key: string) => ipcRenderer.invoke('licensing-activate', key),
+  verifyCurrentKey: (key: string) => ipcRenderer.invoke('licensing-verify-current-key', key),
 })
 
 contextBridge.exposeInMainWorld('database', {
@@ -57,6 +34,7 @@ contextBridge.exposeInMainWorld('pinLock', {
   isSet: () => ipcRenderer.invoke('pin-is-set'),
   set: (pin: string) => ipcRenderer.invoke('pin-set', pin),
   verify: (pin: string) => ipcRenderer.invoke('pin-verify', pin),
+  reset: (key: string) => ipcRenderer.invoke('pin-reset', key),
   clear: () => ipcRenderer.invoke('pin-clear'),
 })
 

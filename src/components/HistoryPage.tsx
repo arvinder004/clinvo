@@ -39,31 +39,31 @@ const ReceiptRow: React.FC<{
   showPatient?: boolean;
   showDoctor?: boolean;
 }> = ({ r, onPrint, onDownload, onEdit, onDelete, showPatient = true, showDoctor = true }) => (
-  <tr className="receipt-table-row">
-    <td><span className="r-num">#{r.receiptNumber}</span><div className="r-date-small">{rDate(r)}</div></td>
+  <tr>
+    <td><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontFamily: 'monospace' }}>#{r.receiptNumber}</span><div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>{rDate(r)}</div></td>
     {showPatient && (
       <td>
-        <div className="r-name">{r.patientName}</div>
-        {r.patientPhone && <div className="r-ph">{r.patientPhone}</div>}
-        {r.patientDob && <div className="r-age">{calculateAgeFromDob(r.patientDob)} / {r.patientGender}</div>}
+        <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>{r.patientName}</div>
+        {r.patientPhone && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>{r.patientPhone}</div>}
+        {r.patientDob && <div style={{ fontSize: '0.72rem', color: 'var(--primary)', marginTop: '1px', fontWeight: 500 }}>{calculateAgeFromDob(r.patientDob)} / {r.patientGender}</div>}
       </td>
     )}
     {showDoctor && (
-      <td><div className="r-dr">{r.doctorName}</div></td>
+      <td><div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.doctorName}</div></td>
     )}
     <td>
-      <div className="r-services">{r.items.map(i => <span key={i.id} className="service-tag">{i.description}</span>)}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>{r.items.map(i => <span key={i.id} style={{ fontSize: '0.7rem', color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>{i.description}</span>)}</div>
     </td>
     <td>
-      <span className={`payment-badge ${(r.paymentMethod || 'CASH').toLowerCase()}`}>{r.paymentMethod || 'CASH'}</span>
+      <span className={`bento-badge badge-${(r.paymentMethod || 'CASH').toLowerCase()}`}>{r.paymentMethod || 'CASH'}</span>
     </td>
-    <td className="text-right"><span className="r-amt">{rupee(billable(r))}</span></td>
-    <td className="text-right">
-      <div className="action-buttons">
-        <button className="btn-icon-xs print-btn" onClick={() => onPrint(r)} title="Print"><Printer size={14} /></button>
-        <button className="btn-icon-xs print-btn" onClick={() => onDownload(r)} title="Download PDF"><Download size={14} /></button>
-        <button className="btn-icon-xs edit-btn" onClick={() => onEdit(r)} title="Edit"><Edit2 size={14} /></button>
-        <button className="btn-icon-xs delete-btn" onClick={() => onDelete(r.id)} title="Delete"><Trash2 size={14} /></button>
+    <td style={{ textAlign: 'right' }}><span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{rupee(billable(r))}</span></td>
+    <td style={{ textAlign: 'right' }}>
+      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+        <button className="bento-btn-ghost" style={{ padding: '0.4rem' }} onClick={() => onPrint(r)} title="Print"><Printer size={14} /></button>
+        <button className="bento-btn-ghost" style={{ padding: '0.4rem' }} onClick={() => onDownload(r)} title="Download PDF"><Download size={14} /></button>
+        <button className="bento-btn-ghost" style={{ padding: '0.4rem', color: '#0284c7' }} onClick={() => onEdit(r)} title="Edit"><Edit2 size={14} /></button>
+        <button className="bento-btn-ghost" style={{ padding: '0.4rem', color: '#ef4444' }} onClick={() => onDelete(r.id)} title="Delete"><Trash2 size={14} /></button>
       </div>
     </td>
   </tr>
@@ -81,19 +81,19 @@ const GroupBlock: React.FC<{
 }> = ({ label, meta, total, count, defaultOpen = false, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="hist-group">
-      <div className="hist-group-header" onClick={() => setOpen(o => !o)}>
-        <div className="hist-group-left">
+    <div className="bento-list-card" style={{ marginBottom: '1rem' }}>
+      <div className="bento-list-header" onClick={() => setOpen(o => !o)} style={{ cursor: 'pointer' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--text-main)' }}>
           {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span className="hist-group-label">{label}</span>
-          {meta && <span className="hist-group-meta">{meta}</span>}
+          <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{label}</span>
+          {meta && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{meta}</span>}
         </div>
-        <div className="hist-group-right">
-          <span className="hist-group-count">{count} visit{count !== 1 ? 's' : ''}</span>
-          <span className="hist-group-total">{rupee(total)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{count} visit{count !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>{rupee(total)}</span>
         </div>
       </div>
-      {open && <div className="hist-group-body">{children}</div>}
+      {open && <div>{children}</div>}
     </div>
   );
 };
@@ -109,8 +109,8 @@ const ReceiptTable: React.FC<{
   showPatient?: boolean;
   showDoctor?: boolean;
 }> = ({ rows, onPrint, onDownload, onEdit, onDelete, showPatient = true, showDoctor = true }) => (
-  <div className="receipt-items-table-container">
-    <table className="history-table">
+  <div style={{ overflowX: 'auto' }}>
+    <table className="bento-table">
       <thead>
         <tr>
           <th>Receipt / Date</th>
@@ -118,8 +118,8 @@ const ReceiptTable: React.FC<{
           {showDoctor && <th>Doctor</th>}
           <th>Services</th>
           <th>Mode</th>
-          <th className="text-right">Amount</th>
-          <th className="text-right">Actions</th>
+          <th style={{ textAlign: 'right' }}>Amount</th>
+          <th style={{ textAlign: 'right' }}>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -178,9 +178,9 @@ const PatientView: React.FC<{
   const sorted = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
 
   return (
-    <div className="hist-view">
-      <div className="hist-search-bar">
-        <Search size={15} className="hist-search-icon" />
+    <div>
+      <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+        <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
         <input
           placeholder={
             subView === 'by-name' ? 'Search by patient name…' :
@@ -189,7 +189,8 @@ const PatientView: React.FC<{
           }
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="hist-search-input"
+          className="bento-input-search"
+          style={{ width: '100%', maxWidth: 'none' }}
         />
       </div>
 
@@ -272,54 +273,54 @@ const FinancialView: React.FC<{
   const freeCount = filtered.filter(r => r.paymentMethod === 'FREE').length;
 
   return (
-    <div className="hist-view">
+    <div>
       {/* Summary strip */}
-      <div className="fin-summary-strip">
-        <div className="fin-metric main">
-          <TrendingUp size={18} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', background: 'var(--primary)', borderRadius: '12px', padding: '1rem 1.25rem', color: 'white', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginRight: '0.5rem' }}>
+          <TrendingUp size={24} />
           <div>
-            <span className="fin-label">Total Collection</span>
-            <span className="fin-value">{rupee(totalAll)}</span>
+            <span style={{ display: 'block', fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Collection</span>
+            <span style={{ display: 'block', fontSize: '1.25rem', fontWeight: 700 }}>{rupee(totalAll)}</span>
           </div>
         </div>
-        <div className="fin-metric">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div>
-            <span className="fin-label">Cash</span>
-            <span className="fin-value">{rupee(cashAll)}</span>
+            <span style={{ display: 'block', fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cash</span>
+            <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700 }}>{rupee(cashAll)}</span>
           </div>
         </div>
-        <div className="fin-metric">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div>
-            <span className="fin-label">Online</span>
-            <span className="fin-value">{rupee(onlineAll)}</span>
+            <span style={{ display: 'block', fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Online</span>
+            <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700 }}>{rupee(onlineAll)}</span>
           </div>
         </div>
-        <div className="fin-metric">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div>
-            <span className="fin-label">Free Visits</span>
-            <span className="fin-value">{freeCount}</span>
+            <span style={{ display: 'block', fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Free Visits</span>
+            <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700 }}>{freeCount}</span>
           </div>
         </div>
-        <button className="btn-export-sm" onClick={() => storage.exportToExcel()}>
+        <button onClick={() => storage.exportToExcel()} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: '6px', padding: '0.5rem 0.9rem', fontSize: '0.8rem', fontWeight: 600, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}>
           <FileText size={14} /> Export CSV
         </button>
       </div>
 
       {/* Date range picker */}
       {subView === 'by-range' && (
-        <div className="fin-range-row">
-          <div className="filter-input-wrapper calendar-picker">
-            <span className="input-label-inline">From</span>
-            <Calendar size={14} className="input-icon shifted" />
-            <input type="date" className="date-input" value={rangeStart} onChange={e => setRangeStart(e.target.value)} />
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, minWidth: '160px' }}>
+            <span style={{ position: 'absolute', left: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em', zIndex: 1, pointerEvents: 'none' }}>From</span>
+            <Calendar size={14} style={{ position: 'absolute', left: '4.5rem', color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 1 }} />
+            <input type="date" className="bento-input" style={{ paddingLeft: '6.25rem', width: '100%' }} value={rangeStart} onChange={e => setRangeStart(e.target.value)} />
           </div>
-          <div className="filter-input-wrapper calendar-picker">
-            <span className="input-label-inline">To</span>
-            <Calendar size={14} className="input-icon shifted" />
-            <input type="date" className="date-input" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, minWidth: '160px' }}>
+            <span style={{ position: 'absolute', left: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em', zIndex: 1, pointerEvents: 'none' }}>To</span>
+            <Calendar size={14} style={{ position: 'absolute', left: '3.5rem', color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 1 }} />
+            <input type="date" className="bento-input" style={{ paddingLeft: '5.25rem', width: '100%' }} value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} />
           </div>
           {(rangeStart || rangeEnd) && (
-            <button className="btn-reset" onClick={() => { setRangeStart(''); setRangeEnd(''); }}>Clear</button>
+            <button className="bento-btn-ghost" style={{ background: '#fee2e2', color: '#ef4444' }} onClick={() => { setRangeStart(''); setRangeEnd(''); }}>Clear</button>
           )}
         </div>
       )}
@@ -384,18 +385,19 @@ const DoctorView: React.FC<{
   });
 
   return (
-    <div className="hist-view">
-      <div className="hist-search-bar">
-        <Search size={15} className="hist-search-icon" />
+    <div>
+      <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+        <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
         <input
           placeholder="Search doctor…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="hist-search-input"
+          className="bento-input-search"
+          style={{ width: '100%', maxWidth: 'none' }}
         />
       </div>
 
-      <div className="dr-cards-grid">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {sorted.map(([name, rows]) => {
           const total = rows.reduce((s, r) => s + billable(r), 0);
           const cash = rows.filter(r => (r.paymentMethod || 'CASH') === 'CASH').reduce((s, r) => s + billable(r), 0);
@@ -416,14 +418,14 @@ const DoctorView: React.FC<{
               total={total}
               count={rows.length}
             >
-              <div className="dr-stats-row">
-                <div className="dr-stat"><span className="dr-stat-label">Cash</span><span className="dr-stat-val">{rupee(cash)}</span></div>
-                <div className="dr-stat"><span className="dr-stat-label">Online</span><span className="dr-stat-val">{rupee(online)}</span></div>
-                <div className="dr-stat"><span className="dr-stat-label">Free</span><span className="dr-stat-val">{freeCount} visits</span></div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(248, 250, 252, 0.5)', borderBottom: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}><span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cash</span><span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>{rupee(cash)}</span></div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}><span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Online</span><span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>{rupee(online)}</span></div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}><span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Free</span><span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>{freeCount} visits</span></div>
                 {topSvcs.length > 0 && (
-                  <div className="dr-stat wide">
-                    <span className="dr-stat-label">Top Services</span>
-                    <span className="dr-stat-val small">{topSvcs.map(([s, c]) => `${s} (${c})`).join(' · ')}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: '200px' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top Services</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{topSvcs.map(([s, c]) => `${s} (${c})`).join(' · ')}</span>
                   </div>
                 )}
               </div>
@@ -440,7 +442,7 @@ const DoctorView: React.FC<{
         })}
       </div>
 
-      {sorted.length === 0 && <div className="hist-empty">No doctor records found.</div>}
+      {sorted.length === 0 && <div className="bento-empty bento-list-card">No doctor records found.</div>}
     </div>
   );
 };
@@ -452,11 +454,17 @@ const SubTabs: React.FC<{
   active: string;
   onChange: (v: string) => void;
 }> = ({ options, active, onChange }) => (
-  <div className="hist-subtabs">
+  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
     {options.map(o => (
       <button
         key={o.value}
-        className={`hist-subtab ${active === o.value ? 'active' : ''}`}
+        style={{
+          padding: '0.6rem 1.25rem', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 600,
+          color: active === o.value ? 'white' : 'var(--text-muted)', 
+          background: active === o.value ? 'var(--primary)' : 'var(--surface)', 
+          border: `1px solid ${active === o.value ? 'var(--primary)' : 'var(--border)'}`,
+          cursor: 'pointer', transition: 'all 0.2s', boxShadow: 'var(--shadow-sm)'
+        }}
         onClick={() => onChange(o.value)}
       >
         {o.label}
@@ -479,13 +487,20 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, 
   ];
 
   return (
-    <div className="history-page no-print">
+    <div className="bento-page no-print">
       {/* Top-level tabs */}
-      <div className="hist-top-tabs">
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
         {topTabs.map(t => (
           <button
             key={t.value}
-            className={`hist-top-tab ${view === t.value ? 'active' : ''}`}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+              padding: '1rem 1.5rem', fontSize: '1rem', fontWeight: 700, 
+              color: view === t.value ? 'var(--primary)' : 'var(--text-muted)',
+              background: view === t.value ? 'rgba(14, 165, 233, 0.1)' : 'var(--surface)', 
+              border: `2px solid ${view === t.value ? 'var(--primary)' : 'transparent'}`,
+              borderRadius: 'var(--radius-lg)', cursor: 'pointer', transition: 'all 0.2s'
+            }}
             onClick={() => setView(t.value)}
           >
             {t.icon}
@@ -552,166 +567,6 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, 
         />
       )}
 
-      <style>{`
-        .history-page { display: flex; flex-direction: column; gap: 0; }
-
-        /* ── Top tabs ── */
-        .hist-top-tabs {
-          display: flex; gap: 0; border-bottom: 2px solid var(--border);
-          margin-bottom: 0; background: white;
-          border-radius: 12px 12px 0 0; overflow: hidden;
-          border: 1px solid var(--border);
-        }
-        .hist-top-tab {
-          flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-          padding: 1rem 1.5rem; font-size: 0.9rem; font-weight: 600; color: var(--text-muted);
-          background: #f8fafc; border: none; border-right: 1px solid var(--border);
-          cursor: pointer; transition: all 0.2s;
-        }
-        .hist-top-tab:last-child { border-right: none; }
-        .hist-top-tab:hover { background: #f0f9ff; color: var(--primary); }
-        .hist-top-tab.active { background: white; color: var(--primary); border-bottom: 3px solid var(--primary); }
-
-        /* ── Sub tabs ── */
-        .hist-subtabs {
-          display: flex; gap: 0.5rem; padding: 1rem 1rem 0;
-          background: white; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-        }
-        .hist-subtab {
-          padding: 0.45rem 1.1rem; border-radius: 20px; font-size: 0.82rem; font-weight: 600;
-          color: var(--text-muted); background: #f1f5f9; border: 1px solid transparent;
-          cursor: pointer; transition: all 0.2s;
-        }
-        .hist-subtab:hover { background: #e0f2fe; color: var(--primary); }
-        .hist-subtab.active { background: var(--primary); color: white; }
-
-        /* ── View container ── */
-        .hist-view {
-          background: white; border: 1px solid var(--border); border-top: none;
-          border-radius: 0 0 12px 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;
-        }
-
-        /* ── Search bar ── */
-        .hist-search-bar {
-          position: relative; display: flex; align-items: center;
-          border: 1px solid var(--border); border-radius: 8px; background: #f8fafc;
-          overflow: hidden;
-        }
-        .hist-search-icon { position: absolute; left: 0.85rem; color: var(--text-muted); pointer-events: none; }
-        .hist-search-input {
-          width: 100%; padding: 0.65rem 1rem 0.65rem 2.5rem;
-          border: none; background: transparent; font-size: 0.9rem; font-family: inherit;
-          color: var(--text-main);
-        }
-        .hist-search-input:focus { outline: none; }
-
-        /* ── Group blocks ── */
-        .hist-group {
-          border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
-        }
-        .hist-group-header {
-          display: flex; justify-content: space-between; align-items: center;
-          padding: 0.85rem 1.1rem; background: #f8fafc; cursor: pointer;
-          transition: background 0.15s; user-select: none;
-        }
-        .hist-group-header:hover { background: #f0f9ff; }
-        .hist-group-left { display: flex; align-items: center; gap: 0.6rem; color: var(--text-main); }
-        .hist-group-label { font-weight: 700; font-size: 0.95rem; }
-        .hist-group-meta { font-size: 0.75rem; color: var(--text-muted); }
-        .hist-group-right { display: flex; align-items: center; gap: 1.25rem; }
-        .hist-group-count { font-size: 0.75rem; color: var(--text-muted); }
-        .hist-group-total { font-size: 0.95rem; font-weight: 700; color: var(--primary); }
-        .hist-group-body { border-top: 1px solid var(--border); }
-
-        /* ── Receipt table ── */
-        .receipt-items-table-container { overflow: hidden; }
-        .history-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-        .history-table th {
-          background: #f8fafc; padding: 0.6rem 1rem; text-align: left;
-          font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border);
-          font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
-        }
-        .history-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
-        .receipt-table-row:last-child td { border-bottom: none; }
-        .receipt-table-row:hover { background: #f8fafc; }
-
-        .r-num { color: var(--text-muted); font-size: 0.75rem; font-family: monospace; }
-        .r-date-small { font-size: 0.7rem; color: #94a3b8; margin-top: 2px; }
-        .r-name { font-weight: 600; color: var(--text-main); font-size: 0.9rem; }
-        .r-ph { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
-        .r-age { font-size: 0.72rem; color: var(--primary); margin-top: 1px; font-weight: 500; }
-        .r-dr { font-size: 0.85rem; color: var(--text-muted); }
-        .r-amt { font-weight: 700; color: var(--text-main); }
-        .r-services { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-        .service-tag { font-size: 0.7rem; color: #64748b; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
-
-        .action-buttons { display: flex; gap: 0.4rem; justify-content: flex-end; }
-        .btn-icon-xs {
-          width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-          border-radius: 6px; border: 1px solid #e2e8f0; color: #64748b; background: white; transition: all 0.2s; cursor: pointer;
-        }
-        .btn-icon-xs.print-btn:hover { color: var(--primary); border-color: #e0f2fe; background: #f0f9ff; }
-        .btn-icon-xs.edit-btn:hover { color: #0284c7; border-color: #e0f2fe; background: #f0f9ff; }
-        .btn-icon-xs.delete-btn:hover { color: #ef4444; border-color: #fee2e2; background: #fef2f2; }
-
-        .text-right { text-align: right !important; }
-        .hist-empty { text-align: center; padding: 3rem; color: var(--text-muted); font-size: 0.9rem; }
-
-        .payment-badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-        .payment-badge.cash { background: #fef3c7; color: #92400e; }
-        .payment-badge.online { background: #dcfce7; color: #166534; }
-        .payment-badge.free { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
-
-        /* ── Financial summary strip ── */
-        .fin-summary-strip {
-          display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
-          background: var(--primary); border-radius: 10px; padding: 1rem 1.25rem; color: white; margin-bottom: 0.25rem;
-        }
-        .fin-metric { display: flex; align-items: center; gap: 0.6rem; }
-        .fin-metric.main { margin-right: 0.5rem; }
-        .fin-label { display: block; font-size: 0.65rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.05em; }
-        .fin-value { display: block; font-size: 1rem; font-weight: 700; }
-        .btn-export-sm {
-          margin-left: auto; display: flex; align-items: center; gap: 0.4rem;
-          background: rgba(255,255,255,0.2); color: white; border-radius: 6px;
-          padding: 0.5rem 0.9rem; font-size: 0.8rem; font-weight: 600; border: none; cursor: pointer;
-          transition: background 0.2s;
-        }
-        .btn-export-sm:hover { background: rgba(255,255,255,0.3); }
-
-        /* ── Range pickers ── */
-        .fin-range-row {
-          display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.25rem;
-        }
-        .filter-input-wrapper { position: relative; display: flex; align-items: center; flex: 1; min-width: 160px; }
-        .filter-input-wrapper .input-icon { position: absolute; left: 1rem; color: var(--text-muted); pointer-events: none; z-index: 1; }
-        .filter-input-wrapper .input-icon.shifted { left: 4.5rem; }
-        .input-label-inline {
-          position: absolute; left: 1rem; font-size: 0.75rem; font-weight: 700; color: var(--primary);
-          text-transform: uppercase; letter-spacing: 0.05em; z-index: 1; pointer-events: none;
-        }
-        .date-input {
-          padding-left: 6.25rem; width: 100%; border: 1px solid var(--border); border-radius: 8px; height: 44px;
-          font-family: 'Outfit', sans-serif; font-size: 0.9rem; color: var(--text-main); background: white;
-        }
-        .date-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14,165,233,0.12); }
-        .btn-reset {
-          background: #fee2e2; color: #ef4444; font-size: 0.8rem; font-weight: 600;
-          padding: 0.5rem 1rem; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;
-        }
-
-        /* ── Doctor stats ── */
-        .dr-cards-grid { display: flex; flex-direction: column; gap: 0.75rem; }
-        .dr-stats-row {
-          display: flex; flex-wrap: wrap; gap: 0.75rem;
-          padding: 0.75rem 1rem; background: #f8fafc; border-bottom: 1px solid var(--border);
-        }
-        .dr-stat { display: flex; flex-direction: column; gap: 2px; }
-        .dr-stat.wide { flex: 1; min-width: 200px; }
-        .dr-stat-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-        .dr-stat-val { font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
-        .dr-stat-val.small { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
-      `}</style>
     </div>
   );
 };

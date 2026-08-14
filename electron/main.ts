@@ -5,7 +5,6 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import Store from 'electron-store'
 import crypto from 'node:crypto'
-import { excelStorage } from './excelStorage'
 import { database } from './database'
 import { shell } from 'electron'
 import pkg from 'electron-updater'
@@ -15,14 +14,33 @@ const require = createRequire(import.meta.url)
 const { machineIdSync } = require('node-machine-id')
 const Database = require('better-sqlite3')
 
+// --- Data Migration (From AppData to Documents) ---
+const oldDataDir = path.join(app.getPath('userData'), 'ClinicData')
+const newDataDir = path.join(app.getPath('documents'), 'ClinvoData')
+if (fs.existsSync(oldDataDir) && !fs.existsSync(newDataDir)) {
+  try {
+    fs.cpSync(oldDataDir, path.join(newDataDir, 'Database'), { recursive: true })
+    const oldBackups = path.join(newDataDir, 'Database', 'Backups')
+    if (fs.existsSync(oldBackups)) {
+      fs.renameSync(oldBackups, path.join(newDataDir, 'Backups'))
+    }
+  } catch (err) {
+    console.error('Failed to migrate data to Documents:', err)
+  }
+}
+
 // Initialize Database
 database.init(Database)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+import { createClient } from '@supabase/supabase-js'
+const SUPABASE_URL = 'https://pwiuzmjmzekthvnpxoht.supabase.co'
+const SUPABASE_ANON_KEY = 'sb_publishable_007w9EecvzQX25VhkFZ62w_ZtU5aaEU'
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
 const store = new Store()
 const SECRET_SALT = 'CLINVO-OFFLINE-LICENSE-2024-X99'
-
 // The built directory structure
 //
 // ├─┬─┬ dist
@@ -43,103 +61,21 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 
 let win: BrowserWindow | null
 
-// Licensing Logic
-const getMachineID = () => {
-  try {
-    return machineIdSync()
-  } catch (error) {
-    console.error('Failed to get machine ID:', error)
-    return 'UNKNOWN-DEVICE'
-  }
-}
-
-// Full Key Format: YYYYMMDD-XXXX-XXXX-XXXX-XXXX
-const generateDateBoundKey = (id: string, dateStr: string) => {
-  const hash = crypto.createHash('sha256').update(id + dateStr + SECRET_SALT).digest('hex').toUpperCase()
-  return `${dateStr}-${hash.substring(0, 4)}-${hash.substring(4, 8)}-${hash.substring(8, 12)}-${hash.substring(12, 16)}`
-}
-
-ipcMain.handle('get-machine-id', () => getMachineID())
-
-ipcMain.handle('check-activation', () => {
-  const savedKey = store.get('license_key') as string
-  if (!savedKey) return { status: 'NOT_ACTIVATED' }
-
-  const parts = savedKey.split('-')
-  const dateStr = parts[0]
-  
-  if (!dateStr || dateStr.length !== 8) return { status: 'NOT_ACTIVATED' }
-
-  const expectedKey = generateDateBoundKey(getMachineID(), dateStr)
-  if (savedKey !== expectedKey) return { status: 'INVALID' }
-
-  // Expiry check
-  const expiryDate = new Date(
-    parseInt(dateStr.substring(0, 4)),
-    parseInt(dateStr.substring(4, 6)) - 1,
-    parseInt(dateStr.substring(6, 8)),
-    23, 59, 59
-  )
-  
-  const now = new Date()
-  
-  // Anti-tampering check
-  const lastSeenStr = store.get('last_seen_date') as string
-  if (lastSeenStr) {
-    const lastSeen = new Date(lastSeenStr)
-    // If current time is more than 24 hours BEFORE last seen, suspect tampering
-    // (We allow small drifts but not major clock resets)
-    if (now < new Date(lastSeen.getTime() - 1000 * 60 * 60)) {
-      return { status: 'TAMPERED', message: 'System clock has been manipulated.' }
-    }
-  }
-  
-  if (now > expiryDate) {
-    return { status: 'EXPIRED', expiryDate: expiryDate.toLocaleDateString() }
-  }
-
-  // Update last seen to current time
-  store.set('last_seen_date', now.toISOString())
-
-  const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  return { status: 'ACTIVATED', daysLeft, expiryDate: expiryDate.toLocaleDateString() }
+// Recovery Key Logic
+ipcMain.handle('generate-recovery-key', () => {
+  const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let key = 'CLNV-'
+  for (let i = 0; i < 4; i++) key += characters.charAt(Math.floor(Math.random() * characters.length))
+  key += '-'
+  for (let i = 0; i < 4; i++) key += characters.charAt(Math.floor(Math.random() * characters.length))
+  store.set('recovery_key', key)
+  return key
 })
 
-ipcMain.handle('activate-license', (_, fullKey: string) => {
-  const cleanKey = fullKey.trim().toUpperCase()
-  const parts = cleanKey.split('-')
-  const dateStr = parts[0]
-
-  if (!dateStr || dateStr.length !== 8) {
-    return { success: false, message: 'Invalid License Format' }
-  }
-
-  const expectedKey = generateDateBoundKey(getMachineID(), dateStr)
-  if (cleanKey === expectedKey) {
-    store.set('license_key', cleanKey)
-    store.set('last_seen_date', new Date().toISOString())
-    return { success: true }
-  }
-  return { success: false, message: 'Invalid License Key' }
+ipcMain.handle('get-recovery-key', () => {
+  return store.get('recovery_key')
 })
 
-// For original developer to generate keys
-ipcMain.handle('dev-generate-key', (_, mid: string, dateStr: string) => {
-  return generateDateBoundKey(mid, dateStr)
-})
-
-// Excel Storage IPCs
-ipcMain.handle('save-to-excel', (_, data) => {
-  return excelStorage.saveData(data)
-})
-
-ipcMain.handle('load-from-excel', () => {
-  return excelStorage.loadData()
-})
-
-ipcMain.handle('open-excel-file', () => {
-  shell.openPath(excelStorage.getExcelPath())
-})
 
 // SQLite Database IPCs
 ipcMain.handle('db-get-doctors', () => database.getDoctors())
@@ -163,6 +99,77 @@ ipcMain.handle('db-batch-import-doctors', (_, doctors) => database.batchImportDo
 ipcMain.handle('open-db-folder', () => {
   shell.showItemInFolder(database.getDbPath())
 })
+
+// ─── Licensing IPCs (Offline Cryptographic) ───────────────────────────────────
+
+function verifyLicenseKey(keyStr: string) {
+  try {
+    if (!keyStr.startsWith('DOC-')) return { valid: false };
+    const parts = keyStr.slice(4).split('.');
+    if (parts.length !== 2) return { valid: false };
+    const [payloadB64, signature] = parts;
+    
+    // Check signature
+    const hmac = crypto.createHmac('sha256', SECRET_SALT);
+    hmac.update(payloadB64);
+    const expectedSignature = hmac.digest('base64url');
+    if (signature !== expectedSignature) return { valid: false };
+
+    // Check payload
+    const payloadStr = Buffer.from(payloadB64, 'base64url').toString('utf8');
+    const payload = JSON.parse(payloadStr);
+    if (!payload.exp) return { valid: false };
+
+    return { valid: true, expiry: payload.exp };
+  } catch (err) {
+    return { valid: false };
+  }
+}
+
+ipcMain.handle('licensing-get-status', () => {
+  const now = Date.now();
+  
+  // 1. Check if a valid license key is stored
+  const storedKey = store.get('license_key') as string | undefined;
+  if (storedKey) {
+    const check = verifyLicenseKey(storedKey);
+    if (check.valid && check.expiry && check.expiry > now) {
+      const daysLeft = Math.ceil((check.expiry - now) / (1000 * 60 * 60 * 24));
+      return { status: 'ACTIVE', daysLeft, trialActive: false };
+    }
+  }
+
+  // 2. Fall back to Trial
+  let trialStart = store.get('trial_start') as number | undefined;
+  if (!trialStart) {
+    trialStart = now;
+    store.set('trial_start', trialStart);
+  }
+
+  const trialExpiry = trialStart + (7 * 24 * 60 * 60 * 1000); // 7 days
+  if (trialExpiry > now) {
+    const daysLeft = Math.ceil((trialExpiry - now) / (1000 * 60 * 60 * 24));
+    return { status: 'TRIAL', daysLeft, trialActive: true };
+  }
+
+  // 3. Expired
+  return { status: 'EXPIRED', daysLeft: 0, trialActive: false };
+});
+
+ipcMain.handle('licensing-activate', (_, keyStr: string) => {
+  const check = verifyLicenseKey(keyStr.trim());
+  if (check.valid && check.expiry && check.expiry > Date.now()) {
+    store.set('license_key', keyStr.trim());
+    return { success: true };
+  }
+  return { success: false, error: 'Invalid or expired license key.' };
+});
+
+ipcMain.handle('licensing-verify-current-key', (_, keyStr: string) => {
+  const storedKey = store.get('license_key') as string | undefined;
+  if (!storedKey) return false;
+  return keyStr.trim() === storedKey;
+});
 
 // ─── Setup Wizard IPCs ───────────────────────────────────────────────────────
 
@@ -194,15 +201,21 @@ ipcMain.handle('pin-verify', (_, pin: string) => {
   return { success: hash === stored }
 })
 
+ipcMain.handle('pin-reset', (_, recoveryKeyAttempt: string) => {
+  const actualKey = store.get('recovery_key') as string | undefined
+  if (!actualKey || recoveryKeyAttempt.trim().toUpperCase() !== actualKey) {
+    return { success: false, message: 'Invalid Recovery Key.' }
+  }
+  store.delete('app_pin_hash')
+  return { success: true }
+})
+
 ipcMain.handle('pin-clear', () => {
   store.delete('app_pin_hash')
   return { success: true }
 })
 
 // ─── Developer Mode PIN IPCs ──────────────────────────────────────────────────
-
-// Default PIN — always works regardless of user-set PIN
-const DEFAULT_DEV_PIN = '7749'
 
 const hashDevPin = (pin: string) =>
   crypto.createHash('sha256').update(pin + SECRET_SALT + 'DEV').digest('hex')
@@ -217,17 +230,15 @@ ipcMain.handle('dev-pin-set', (_, pin: string) => {
 })
 
 ipcMain.handle('dev-pin-verify', (_, pin: string) => {
-  // Default PIN always works
-  if (pin === DEFAULT_DEV_PIN) return { success: true }
   const stored = store.get('dev_pin_hash') as string | undefined
   if (!stored) return { success: false }
   return { success: hashDevPin(pin) === stored }
 })
 
-// Reset user PIN after verifying the default PIN
-ipcMain.handle('dev-pin-reset', (_, defaultPinAttempt: string) => {
-  if (defaultPinAttempt !== DEFAULT_DEV_PIN) {
-    return { success: false, message: 'Incorrect default PIN.' }
+ipcMain.handle('dev-pin-reset', (_, recoveryKeyAttempt: string) => {
+  const actualKey = store.get('recovery_key') as string | undefined
+  if (!actualKey || recoveryKeyAttempt.trim().toUpperCase() !== actualKey) {
+    return { success: false, message: 'Invalid Recovery Key.' }
   }
   store.delete('dev_pin_hash')
   return { success: true }
@@ -240,7 +251,7 @@ ipcMain.handle('dev-pin-clear', () => {
 
 // ─── Auto Daily Backup ────────────────────────────────────────────────────────
 
-const BACKUP_DIR = path.join(app.getPath('userData'), 'ClinicData', 'Backups')
+const BACKUP_DIR = path.join(app.getPath('documents'), 'ClinvoData', 'Backups')
 const MAX_BACKUPS = 7 // keep last 7 daily backups
 
 const runDailyBackup = () => {
@@ -342,9 +353,14 @@ ipcMain.handle('backup-open-folder', () => {
 
 ipcMain.handle('save-pdf', async (event) => {
   const { dialog } = await import('electron')
+  const defaultReceiptsDir = path.join(app.getPath('documents'), 'ClinvoData', 'Receipts')
+  if (!fs.existsSync(defaultReceiptsDir)) {
+    fs.mkdirSync(defaultReceiptsDir, { recursive: true })
+  }
+
   const { filePath, canceled } = await dialog.showSaveDialog({
     title: 'Save Receipt as PDF',
-    defaultPath: `receipt_${new Date().toISOString().slice(0,10)}.pdf`,
+    defaultPath: path.join(defaultReceiptsDir, `receipt_${new Date().toISOString().slice(0,10)}.pdf`),
     filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
   })
   if (canceled || !filePath) return { success: false }
@@ -396,6 +412,8 @@ function createWindow() {
     title: 'Clinvo Clinic Management',
     icon: path.join(process.env.VITE_PUBLIC || RENDERER_DIST, 'icon.png'),
     webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })

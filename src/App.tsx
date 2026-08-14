@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { LayoutDashboard, Users, Receipt, PlusCircle, Settings, ShieldCheck, Copy, DownloadCloud, UploadCloud, FileText, Activity, Briefcase, FolderOpen, KeyRound, HardDrive, RotateCcw, Lock, Timer, Code2 } from 'lucide-react';
+import { LayoutDashboard, Users, Receipt, PlusCircle, Settings, ShieldCheck, DownloadCloud, UploadCloud, FileText, Briefcase, FolderOpen, KeyRound, HardDrive, RotateCcw, Lock, Timer, Code2 } from 'lucide-react';
 
 import { storage, type Doctor, type Receipt as ReceiptType, type Service } from './lib/storage';
 import HistoryPage from './components/HistoryPage';
@@ -11,9 +11,10 @@ import Dashboard from './components/Dashboard';
 import DoctorManagement from './components/DoctorManagement';
 import ServiceManagement from './components/ServiceManagement';
 import ReceiptForm from './components/ReceiptForm';
-import ActivationScreen from './components/ActivationScreen';
+import SubscriptionScreen from './components/SubscriptionScreen';
 import PinLock from './components/PinLock';
 import SetupWizard from './components/SetupWizard';
+import logoImg from './assets/logo.png';
 
 type Tab = 'dashboard' | 'doctors' | 'services' | 'new-receipt' | 'history' | 'settings';
 
@@ -44,7 +45,7 @@ const DevLoginModal: React.FC<{ onSuccess: () => void; onClose: () => void }> = 
     // @ts-ignore
     const result = await window.devPin.reset(resetPin);
     if (result.success) { setView('reset-success'); setResetPin(''); setError(''); }
-    else { setError('Incorrect default PIN. Contact Clinvo Support for assistance.'); setResetPin(''); }
+    else { setError(result.message || 'Incorrect Recovery Key.'); setResetPin(''); }
   };
 
   return (
@@ -72,11 +73,11 @@ const DevLoginModal: React.FC<{ onSuccess: () => void; onClose: () => void }> = 
 
         {view === 'reset' && (<>
           <h3>Reset Developer PIN</h3>
-          <p>Enter the default Clinvo PIN to reset your developer PIN. If you don't have it, contact Clinvo Support.</p>
+          <p>Enter your 12-character Recovery Key (generated during setup) to reset your developer PIN.</p>
           <input
-            type="password" inputMode="numeric" maxLength={4} placeholder="Default PIN"
+            type="text" placeholder="e.g. CLNV-8X4T-9P2Q"
             value={resetPin} autoFocus
-            onChange={e => { setResetPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setError(''); }}
+            onChange={e => { setResetPin(e.target.value.toUpperCase()); setError(''); }}
             onKeyDown={e => e.key === 'Enter' && handleReset()}
           />
           {error && <p className="dev-error">{error}</p>}
@@ -84,7 +85,6 @@ const DevLoginModal: React.FC<{ onSuccess: () => void; onClose: () => void }> = 
             <button className="btn-ghost" onClick={() => { setView('login'); setResetPin(''); setError(''); }}>Back</button>
             <button className="btn-primary" onClick={handleReset}>Reset PIN</button>
           </div>
-          <p className="dev-support-note">Need help? Contact Clinvo Support at <strong>support@clinvo.com</strong></p>
         </>)}
 
         {view === 'reset-success' && (<>
@@ -105,8 +105,6 @@ const App: React.FC = () => {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [receipts, setReceipts] = useState<ReceiptType[]>([]);
-  const [activationStatus, setActivationStatus] = useState<{status: 'NOT_ACTIVATED' | 'ACTIVATED' | 'EXPIRED' | 'TAMPERED'; expiryDate?: string} | null>(null);
-  const [machineId, setMachineId] = useState<string>('');
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
   // PIN lock state
@@ -119,6 +117,9 @@ const App: React.FC = () => {
   const [wizardChecked, setWizardChecked] = useState(false);
   const [clinicName, setClinicName] = useState<string>('');
 
+  // Licensing state
+  const [licenseInfo, setLicenseInfo] = useState<{status: string, daysLeft: number, trialActive: boolean} | null>(null);
+
   // Auto-lock: timeout in minutes (0 = disabled)
   const AUTO_LOCK_TIMEOUT_KEY = 'clinvo_autolock_timeout';
   const [autoLockMinutes, setAutoLockMinutes] = useState<number>(() => {
@@ -127,18 +128,20 @@ const App: React.FC = () => {
   });
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [logoClicks, setLogoClicks] = useState(0);
-  const [syncKeyInput, setSyncKeyInput] = useState('');
   const [showDevLogin, setShowDevLogin] = useState(false);
   
   const [receiptsToPrint, setReceiptsToPrint] = useState<ReceiptType[]>([]);
   const [editingReceipt, setEditingReceipt] = useState<ReceiptType | null>(null);
 
+  // PIN Auth
+  const [pinAuthTarget, setPinAuthTarget] = useState<'change' | 'remove' | null>(null);
+  const [authKeyInput, setAuthKeyInput] = useState('');
+  const [authError, setAuthError] = useState('');
+  
+  // Licensing Activation
+  const [activationKeyInput, setActivationKeyInput] = useState('');
+
   useEffect(() => {
-    const checkLicense = async () => {
-      // @ts-ignore
-      const result = await window.licensing.checkActivation();
-      setActivationStatus(result);
-    };
 
     const checkPin = async () => {
       // @ts-ignore
@@ -169,11 +172,14 @@ const App: React.FC = () => {
       const receipts = await storage.getReceipts();
       const doctors = await storage.getDoctors();
       if (receipts.length === 0 && doctors.length === 0) {
-        // @ts-ignore
-        const excelData = await window.excelStorage?.loadData();
-        if (excelData) await storage.importData(JSON.stringify(excelData));
       }
       refreshData();
+    };
+
+    const checkLicense = async () => {
+      // @ts-ignore
+      const info = await window.licensing.getStatus();
+      setLicenseInfo(info);
     };
 
     checkLicense();
@@ -184,10 +190,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'settings' && !machineId) {
-      // @ts-ignore
-      window.licensing.getMachineID().then(id => setMachineId(id));
-    }
+
     if (activeTab === 'settings') {
       // @ts-ignore
       window.backup.list().then((list: any[]) => setBackupList(list));
@@ -238,17 +241,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isDevMode]);
 
-  const handleSyncDoctors = async () => {
-    if (!syncKeyInput.trim()) return alert('Please enter a Setup Key');
-    if (await storage.batchImportDoctors(syncKeyInput.trim())) {
-      alert('Doctors synchronized successfully!');
-      setSyncKeyInput('');
-      refreshData();
-    } else {
-      alert('Invalid Setup Key. Please contact the developer.');
-    }
-  };
-
   const handlePrint = (input: ReceiptType | ReceiptType[]) => {
     const toPrint = Array.isArray(input) ? input : [input];
     setReceiptsToPrint(toPrint);
@@ -291,16 +283,32 @@ const App: React.FC = () => {
     setActiveTab('new-receipt');
   };
 
-  if (activationStatus === null) {
-    return <div className="loading-screen">Loading Clinvo...</div>;
+  if (!wizardChecked || !licenseInfo) {
+    return <div className="loading-screen">Starting Clinvo...</div>;
   }
 
-  if (activationStatus.status !== 'ACTIVATED') {
+  // Check Subscription Expiration
+  if (licenseInfo.status === 'EXPIRED') {
     return (
-      <ActivationScreen 
-        status={activationStatus.status} 
-        expiryDate={activationStatus.expiryDate}
-        onActivated={() => window.location.reload()} 
+      <SubscriptionScreen 
+        onActivated={async () => {
+          // @ts-ignore
+          const info = await window.licensing.getStatus();
+          setLicenseInfo(info);
+        }} 
+      />
+    );
+  }
+
+  // Show Setup Wizard if not completed
+  if (showWizard) {
+    return (
+      <SetupWizard
+        onComplete={(name, pinWasSet) => {
+          if (pinWasSet) setPinIsSet(true);
+          if (name) setClinicName(name);
+          setShowWizard(false);
+        }}
       />
     );
   }
@@ -330,25 +338,21 @@ const App: React.FC = () => {
     return <div className="loading-screen">Loading Clinvo...</div>;
   }
 
-  // Setup wizard — shown once, after PIN is resolved
-  if (wizardChecked && showWizard && pinState === 'unlocked') {
-    return (
-      <SetupWizard
-        onComplete={(name, pinWasSet) => {
-          if (pinWasSet) setPinIsSet(true);
-          if (name) setClinicName(name);
-          setShowWizard(false);
-        }}
-      />
-    );
-  }
+
 
   return (
-    <div className="app-container">
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {licenseInfo.daysLeft <= 7 && licenseInfo.status !== 'EXPIRED' && (
+        <div style={{ backgroundColor: '#fef08a', color: '#854d0e', padding: '0.5rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 500, zIndex: 1000, position: 'relative' }}>
+          ⚠️ Your {licenseInfo.trialActive ? 'trial' : 'subscription'} expires in {licenseInfo.daysLeft} days. 
+          Please contact support to renew your license.
+        </div>
+      )}
+      <div className="app-container" style={{ flex: 1, minHeight: 0 }}>
       <aside className="sidebar no-print">
         <div className="sidebar-header" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
           <div className="logo">
-            <img src="/icon.png" alt="Logo" className="logo-img" />
+            <img src={logoImg} alt="Logo" className="logo-img" />
             {clinicName ? (
               <div className="logo-text-stack">
                 <span className="logo-clinic-name">{clinicName}</span>
@@ -496,27 +500,6 @@ const App: React.FC = () => {
                   />
                 </div>
 
-                {/* Professional Setup */}
-                <div className="card control-card">
-                  <div className="card-icon-header inline">
-                    <div className="header-icon purple"><Users size={18} /></div>
-                    <h3>Professional Setup</h3>
-                  </div>
-                  <p className="card-description">Synchronize your clinic's doctor information using a secure Setup Key provided by the developer.</p>
-                  <div className="card-actions-vertical">
-                    <input 
-                      type="text"
-                      placeholder="Paste Setup Key here..." 
-                      value={syncKeyInput}
-                      onChange={(e) => setSyncKeyInput(e.target.value)}
-                      className="sync-input-line"
-                    />
-                    <button className="btn-primary w-full" onClick={handleSyncDoctors} disabled={!syncKeyInput.trim()}>
-                      <Activity size={16} /> Sync Doctors Now
-                    </button>
-                  </div>
-                </div>
-
                 {/* Reports & Intelligence */}
                 <div className="card control-card">
                   <div className="card-icon-header inline">
@@ -527,6 +510,44 @@ const App: React.FC = () => {
                   <div className="card-actions">
                     <button className="btn-ghost-bottom w-full" onClick={() => storage.exportToExcel()}>
                       <FileText size={16} /> Download CSV Report
+                    </button>
+                  </div>
+                </div>
+                {/* Product License Activation */}
+                <div className="card control-card">
+                  <div className="card-icon-header inline">
+                    <div className="header-icon orange"><ShieldCheck size={18} /></div>
+                    <h3>Product License</h3>
+                  </div>
+                  <p className="card-description">
+                    {licenseInfo?.trialActive
+                      ? `You are on a free trial with ${licenseInfo.daysLeft} days remaining.`
+                      : licenseInfo?.status === 'ACTIVE'
+                        ? `Your subscription is active with ${licenseInfo.daysLeft} days remaining.`
+                        : 'Your subscription has expired.'}
+                  </p>
+                  <div className="card-actions-vertical">
+                    <input 
+                      type="text"
+                      placeholder="Enter License Key (DOC-...)" 
+                      value={activationKeyInput}
+                      onChange={(e) => setActivationKeyInput(e.target.value)}
+                      className="sync-input-line"
+                    />
+                    <button className="btn-primary w-full" 
+                      disabled={!activationKeyInput.trim()}
+                      onClick={async () => {
+                        // @ts-ignore
+                        const result = await window.licensing.activate(activationKeyInput.trim());
+                        if (result.success) {
+                          alert('License activated successfully! Clinvo will now reload.');
+                          window.location.reload();
+                        } else {
+                          alert(result.error || 'Invalid license key.');
+                        }
+                      }}
+                    >
+                      <ShieldCheck size={16} /> Activate License
                     </button>
                   </div>
                 </div>
@@ -578,26 +599,31 @@ const App: React.FC = () => {
                   <p className="card-description">
                     {pinIsSet ? 'A PIN is currently protecting this app.' : 'No PIN set. Anyone who opens the app can access all data.'}
                   </p>
-                  <div className="card-actions-row" style={{ marginBottom: '1rem' }}>
-                    <button className="btn-primary-sm" onClick={() => {
-                      setPinIsSet(false);
-                      setPinState('setup');
-                    }}>
-                      <KeyRound size={16} /> {pinIsSet ? 'Change PIN' : 'Set PIN'}
-                    </button>
-                    {pinIsSet && (
-                      <button className="btn-secondary-sm" onClick={async () => {
-                        if (confirm('Remove PIN protection? Anyone will be able to open the app.')) {
-                          // @ts-ignore
-                          await window.pinLock.clear();
-                          setPinIsSet(false);
-                          alert('PIN removed.');
+                  {licenseInfo?.trialActive ? (
+                    <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fef08a', color: '#854d0e', borderRadius: '4px', fontSize: '0.85rem' }}>
+                      <KeyRound size={14} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                      PIN changes are locked during the free trial. Activate Clinvo to unlock this feature.
+                    </div>
+                  ) : (
+                    <div className="card-actions-row" style={{ marginBottom: '1rem' }}>
+                      <button className="btn-primary-sm" onClick={() => {
+                        if (!pinIsSet) {
+                          setPinState('setup');
+                        } else {
+                          setPinAuthTarget('change');
                         }
                       }}>
-                        Remove PIN
+                        <KeyRound size={16} /> {pinIsSet ? 'Change PIN' : 'Set PIN'}
                       </button>
-                    )}
-                  </div>
+                      {pinIsSet && (
+                        <button className="btn-secondary-sm" onClick={() => {
+                          setPinAuthTarget('remove');
+                        }}>
+                          Remove PIN
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {pinIsSet && (
                     <div className="autolock-setting">
                       <div className="autolock-label">
@@ -649,51 +675,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* System License */}
-                <div className="card control-card">
-                  <div className="card-icon-header inline">
-                    <div className="header-icon gray"><ShieldCheck size={18} /></div>
-                    <h3>System License</h3>
-                  </div>
-                  <p className="card-description">View your system's activation status and copy your machine ID if you require a new license key.</p>
-                  
-                  <div className="license-status-section">
-                    <div className="license-row">
-                      <span className="label-caps">LICENSE STATUS</span>
-                      <div className={`license-badge-modern ${activationStatus?.status === 'ACTIVATED' ? 'active' : ''}`}>
-                        <div className="dot"></div>
-                        <span>{activationStatus?.status === 'ACTIVATED' ? 'ACTIVATED' : activationStatus?.status}</span>
-                        {activationStatus?.expiryDate && <span className="expiry-date">{activationStatus.expiryDate}</span>}
-                      </div>
-                    </div>
-
-                    <div className="license-row">
-                      <span className="label-caps">MACHINE ID</span>
-                      <div className="machine-id-display">
-                        <code>{machineId}</code>
-                        <button className="copy-btn" onClick={() => {
-                          navigator.clipboard.writeText(machineId);
-                          alert('Machine ID copied!');
-                        }}><Copy size={14} /></button>
-                      </div>
-                    </div>
-
-                    <div className="center-link-container">
-                      <button 
-                        className="btn-link" 
-                        onClick={() => {
-                          if (confirm('Are you sure you want to remove the current license?')) {
-                            // @ts-ignore
-                            window.licensing.deactivate();
-                            window.location.reload();
-                          }
-                        }}
-                      >
-                        Change / Renew License
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -721,252 +702,67 @@ const App: React.FC = () => {
         />
       )}
 
-      <style>{`
-        .loading-screen {
-          height: 100vh; display: flex; align-items: center; justify-content: center;
-          background: #f8fafc; color: var(--primary); font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 600;
-        }
-        .dev-overlay {
-          position: fixed;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.5);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 9999;
-          backdrop-filter: blur(4px);
-        }
-        .dev-modal {
-          background: white; border-radius: 1rem; padding: 2rem;
-          width: 320px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-        }
-        .dev-modal h3 { margin: 0 0 0.5rem; color: var(--primary); }
-        .dev-modal p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem; }
-        .dev-modal input {
-          width: 100%; padding: 0.75rem; border: 1px solid var(--border);
-          border-radius: 0.5rem; margin-bottom: 1.5rem; font-size: 1rem;
-        }
-        .dev-modal-actions { display: flex; justify-content: flex-end; gap: 0.75rem; }
+      {pinAuthTarget !== null && (
+        <div className="dev-overlay" onClick={e => { if (e.target === e.currentTarget) { setPinAuthTarget(null); setAuthKeyInput(''); setAuthError(''); } }}>
+          <div className="dev-modal">
+            <h3>Authorization Required</h3>
+            <p>Please enter your Product License Key to authorize this change.</p>
+            <input
+              type="text" placeholder="DOC-..."
+              value={authKeyInput} autoFocus
+              onChange={e => { setAuthKeyInput(e.target.value); setAuthError(''); }}
+              onKeyDown={async e => {
+                if (e.key === 'Enter') {
+                  // @ts-ignore
+                  const isValid = await window.licensing.verifyCurrentKey(authKeyInput);
+                  if (isValid) {
+                    if (pinAuthTarget === 'change') {
+                      setPinIsSet(false);
+                      setPinState('setup');
+                    } else if (pinAuthTarget === 'remove') {
+                      // @ts-ignore
+                      await window.pinLock.clear();
+                      setPinIsSet(false);
+                      alert('PIN removed successfully.');
+                    }
+                    setPinAuthTarget(null);
+                    setAuthKeyInput('');
+                    setAuthError('');
+                  } else {
+                    setAuthError('Incorrect product key.');
+                  }
+                }
+              }}
+            />
+            {authError && <p className="dev-error">{authError}</p>}
+            <div className="dev-modal-actions">
+              <button className="btn-ghost" onClick={() => { setPinAuthTarget(null); setAuthKeyInput(''); setAuthError(''); }}>Cancel</button>
+              <button className="btn-primary" onClick={async () => {
+                // @ts-ignore
+                const isValid = await window.licensing.verifyCurrentKey(authKeyInput);
+                if (isValid) {
+                  if (pinAuthTarget === 'change') {
+                    setPinIsSet(false);
+                    setPinState('setup');
+                  } else if (pinAuthTarget === 'remove') {
+                    // @ts-ignore
+                    await window.pinLock.clear();
+                    setPinIsSet(false);
+                    alert('PIN removed successfully.');
+                  }
+                  setPinAuthTarget(null);
+                  setAuthKeyInput('');
+                  setAuthError('');
+                } else {
+                  setAuthError('Incorrect product key.');
+                }
+              }}>Verify & Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        .dev-error {
-          font-size: 0.8rem; color: #ef4444; margin: -1rem 0 1rem; line-height: 1.4;
-        }
-
-        .dev-forgot-link {
-          display: block; width: 100%; text-align: center; margin-top: 1rem;
-          background: none; border: none; color: #94a3b8; font-size: 0.8rem;
-          cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
-          padding: 0;
-        }
-
-        .dev-forgot-link:hover { color: #64748b; }
-
-        .dev-support-note {
-          margin-top: 1.25rem; font-size: 0.78rem; color: #94a3b8;
-          text-align: center; line-height: 1.5; border-top: 1px solid #f1f5f9; padding-top: 1rem;
-        }
-        
-        .sync-input-modern {
-          padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem;
-          font-family: monospace; font-size: 0.9rem; background: #f8fafc;
-        }
-
-        .license-status-badge {
-          display: inline-flex; align-items: center; gap: 0.5rem; background: #ecfdf5; color: #059669;
-          padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.875rem; font-weight: 600;
-        }
-
-        .status-badge.dev-active {
-          background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; cursor: pointer;
-          width: 100%; justify-content: center; transition: all 0.2s;
-        }
-        
-        .status-badge.dev-active:hover { background: #fee2e2; transform: translateY(-1px); }
-
-        .app-container { display: flex; min-height: 100vh; }
-
-        .sidebar {
-          width: 260px; background: white; border-right: 1px solid var(--border);
-          display: flex; flex-direction: column; padding: 1.5rem; position: sticky; top: 0; height: 100vh;
-        }
-
-        .logo {
-          display: flex; align-items: center; gap: 0.75rem; font-family: 'Outfit', sans-serif;
-          font-weight: 700; font-size: 1.5rem; color: var(--primary);
-          margin-bottom: 2rem;
-        }
-
-        .logo-img {
-          width: 44px; height: 44px; border-radius: 10px; object-fit: contain;
-        }
-
-        .action-buttons {
-          display: flex; gap: 0.5rem; justify-content: flex-end;
-        }
-
-        .btn-icon-xs.delete-btn:hover {
-          color: #ef4444; border-color: #fee2e2; background: #fef2f2;
-        }
-        
-        .btn-icon-xs.edit-btn:hover {
-          color: var(--primary); border-color: #e0f2fe; background: #f0f9ff;
-        }
-
-        .nav-menu { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
-
-        .nav-divider {
-          height: 1px;
-          background: var(--border);
-          margin: 0.5rem 0.5rem;
-          opacity: 0.6;
-        }
-
-        .nav-item {
-          display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem;
-          color: var(--text-muted); background: transparent; font-weight: 500; text-align: left; width: 100%; border-radius: 8px;
-        }
-
-        .nav-item:hover { background: #f1f5f9; color: var(--text-main); }
-        .nav-item.active { background: #f0f9ff; color: var(--primary); }
-
-        .status-badge {
-          display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;
-          color: var(--secondary); background: #f0fdfa; padding: 0.5rem; border-radius: 20px;
-        }
-
-        .dot { width: 8px; height: 8px; background: var(--secondary); border-radius: 50%; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
-
-        .main-content { flex: 1; display: flex; flex-direction: column; }
-
-        .content-header {
-          background: white; padding: 0 2rem; border-bottom: 1px solid var(--border);
-          display: flex; justify-content: space-between; align-items: stretch;
-          min-height: 64px;
-        }
-
-        .content-header h1 { font-size: 1.25rem; color: var(--text-muted); letter-spacing: 0.05em; display: flex; align-items: center; }
-
-        .user-profile {
-          display: flex;
-          align-items: center;
-        }
-
-        .content-inner { padding: 2rem; flex: 1; overflow-y: auto; }
-        .content-inner-flush { padding: 0 !important; overflow: hidden; }
-
-        .date-group-modern { margin-bottom: 2rem; }
-        .btn-reset:hover { background: #fee2e2; color: #ef4444; border-color: #fecaca; }
-        .summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-
-        .control-grid { 
-          display: grid; 
-          grid-template-columns: repeat(2, 1fr); 
-          grid-auto-rows: 1fr;
-          gap: 2rem; 
-          max-width: 1000px;
-          margin: 0 auto;
-        }
-        .control-card { 
-          padding: 2.5rem; background: white; border-radius: 16px; border: 1px solid var(--border); 
-          display: flex; flex-direction: column; gap: 1rem;
-          transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        }
-        .control-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
-        .card-icon-header.inline { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
-        .card-description { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin: 0; }
-        
-        .header-icon { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; }
-        .header-icon.blue { background: #e0f2fe; color: #0284c7; }
-        .header-icon.purple { background: #f3e8ff; color: #9333ea; }
-        .header-icon.green { background: #dcfce7; color: #16a34a; }
-        .header-icon.gray { background: #f1f5f9; color: #475569; }
-
-        .center-header { text-align: center; margin-bottom: 2rem; }
-        .center-header h2 { font-size: 1.75rem; color: #1e293b; margin-bottom: 0.5rem; }
-
-        .card-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: auto; padding-top: 1.5rem; }
-        .btn-primary-sm { 
-          background: #0ea5e9; color: white; padding: 0.75rem; border-radius: 8px; 
-          font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-        }
-        .btn-secondary-sm { 
-          background: #f8fafc; color: var(--text-main); padding: 0.75rem; border-radius: 8px; 
-          border: 1px solid var(--border); font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-        }
-        
-        .card-actions-vertical { margin-top: auto; display: flex; flex-direction: column; gap: 0.5rem; padding-top: 1.5rem; }
-        .sync-input-line {
-          width: 100%; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 8px;
-          background: #f8fafc; font-size: 0.9rem; margin-bottom: 0.5rem; font-family: inherit;
-        }
-        .sync-input-line:focus { outline: none; border-color: var(--primary); background: white; }
-
-        .card-actions { margin-top: auto; padding-top: 1.5rem; display: flex; flex-direction: column; }
-        .btn-ghost-bottom {
-          background: transparent; color: #475569; padding: 0.85rem; border-radius: 8px; 
-          border: 1px solid transparent; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-          transition: all 0.2s;
-        }
-        .btn-ghost-bottom:hover { background: #f1f5f9; color: #1e293b; }
-
-        .license-status-section { display: flex; flex-direction: column; gap: 1rem; margin-top: auto; padding-top: 1.5rem; }
-        .license-row { display: flex; justify-content: space-between; align-items: center; }
-        .label-caps { font-size: 0.7rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em; }
-        
-        .license-badge-modern { 
-          display: flex; align-items: center; gap: 0.75rem; background: #f1f5f9; 
-          padding: 0.5rem 1rem; border-radius: 12px; font-weight: 600; font-size: 0.85rem;
-        }
-        .license-badge-modern.active { background: #ecfdf5; color: #059669; }
-        .license-badge-modern .dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
-        .license-badge-modern.active .dot { background: #10b981; box-shadow: 0 0 8px #10b981; }
-        .expiry-date { color: #64748b; font-weight: 500; margin-left: 0.25rem; }
-
-        .machine-id-display { 
-          display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; 
-          padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border);
-          width: 100%; max-width: 200px;
-        }
-        .machine-id-display code { 
-          font-family: monospace; font-size: 0.75rem; color: #475569; 
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
-        }
-        .copy-btn { background: transparent; color: #64748b; padding: 2px; border-radius: 4px; }
-        .copy-btn:hover { color: var(--primary); background: #f0f9ff; }
-
-        .center-link-container { text-align: center; width: 100%; padding-top: 0.5rem; }
-        .btn-link { 
-          background: transparent; color: var(--text-muted); font-size: 0.75rem; text-align: center; 
-          padding: 0; text-decoration: underline; font-weight: 500;
-        }
-        .btn-link:hover { color: #ef4444; }
-
-        .payment-badge {
-          font-size: 0.65rem;
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-left: 0.5rem;
-        }
-        .payment-badge.cash { background: #fef3c7; color: #92400e; }
-        .payment-badge.online { background: #dcfce7; color: #166534; }
-        .payment-badge.free { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
-
-        .method-breakdown {
-          display: flex;
-          gap: 0.75rem;
-          font-size: 0.65rem;
-          margin-top: 4px;
-          opacity: 0.9;
-          font-weight: 500;
-        }
-        .method-breakdown span {
-          background: rgba(255,255,255,0.15);
-          padding: 1px 5px;
-          border-radius: 4px;
-        }
-      `}</style>
+      </div>
     </div>
   );
 };

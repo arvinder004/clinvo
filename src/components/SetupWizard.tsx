@@ -6,8 +6,8 @@ interface SetupWizardProps {
   onComplete: (clinicName: string, pinSet: boolean) => void;
 }
 
-type Step = 'welcome' | 'clinic-name' | 'pin' | 'dev-pin' | 'done';
-const ALL_STEPS: Step[] = ['welcome', 'clinic-name', 'pin', 'dev-pin', 'done'];
+type Step = 'welcome' | 'clinic-name' | 'pin' | 'dev-pin' | 'recovery' | 'done';
+const ALL_STEPS: Step[] = ['welcome', 'clinic-name', 'pin', 'dev-pin', 'recovery', 'done'];
 
 // ── Inline 4-digit numpad for dev PIN (reuses same style as PinLock) ──────────
 const DOTS = 4;
@@ -71,8 +71,8 @@ const DevPinSetup: React.FC<{ onSet: () => void; onSkip: () => void }> = ({ onSe
   const currentPin = step === 'confirm' ? confirmPin : pin;
 
   return (
-    <div className="wizard-overlay">
-      <div className={`pin-card ${shake ? 'shake' : ''}`}>
+    <div className="bento-fullscreen-overlay">
+      <div className={`bento-auth-card ${shake ? 'shake' : ''}`} style={{ maxWidth: '380px', alignItems: 'center' }}>
         {/* Progress dots — matches wizard progress */}
         <div className="wizard-progress" style={{ marginBottom: '1.5rem' }}>
           {ALL_STEPS.map((s, i) => (
@@ -80,8 +80,8 @@ const DevPinSetup: React.FC<{ onSet: () => void; onSkip: () => void }> = ({ onSe
           ))}
         </div>
 
-        <div className="pin-header">
-          <div className="pin-icon-badge" style={{ background: '#fdf4ff', color: '#9333ea' }}>
+        <div className="bento-auth-header">
+          <div className="bento-auth-icon purple">
             <Code2 size={28} />
           </div>
           <h1>{step === 'confirm' ? 'Confirm Developer PIN' : 'Set Developer PIN'}</h1>
@@ -131,20 +131,15 @@ const DevPinSetup: React.FC<{ onSet: () => void; onSkip: () => void }> = ({ onSe
       </div>
 
       <style>{`
-        .wizard-overlay {
-          position: fixed; inset: 0; background: #f1f5f9;
-          display: flex; align-items: center; justify-content: center;
-          z-index: 9999; font-family: 'Inter', sans-serif;
-        }
-        .pin-card {
-          background: white; border-radius: 24px; padding: 2.5rem 2.25rem;
-          width: 100%; max-width: 400px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;
-          display: flex; flex-direction: column; align-items: center;
+        .shake { animation: shake 0.4s ease; }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-8px); }
+          40%, 80% { transform: translateX(8px); }
         }
         .wizard-progress { display: flex; justify-content: center; gap: 0.5rem; }
         .wizard-step-dot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; transition: all 0.2s; }
-        .wizard-step-dot.active { background: #2563eb; width: 24px; border-radius: 4px; }
+        .wizard-step-dot.active { background: var(--primary); width: 24px; border-radius: 4px; }
         .wizard-step-dot.done { background: #86efac; }
         .pin-header { text-align: center; margin-bottom: 1.5rem; }
         .pin-icon-badge {
@@ -164,6 +159,7 @@ const DevPinSetup: React.FC<{ onSet: () => void; onSkip: () => void }> = ({ onSe
         .pin-error { font-size: 0.8rem; color: #ef4444; text-align: center; }
         .pin-numpad {
           display: grid; grid-template-columns: repeat(3, 72px);
+          justify-content: center;
           gap: 0.75rem; margin-bottom: 1.25rem;
         }
         .pin-key {
@@ -206,6 +202,15 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
   const [pinSet, setPinSet] = useState(false);
   const [devPinSet, setDevPinSet] = useState(false);
   const [nameError, setNameError] = useState('');
+  const [recoveryKey, setRecoveryKey] = useState('');
+
+  useEffect(() => {
+    // @ts-ignore
+    if (window.recoveryKey) {
+      // @ts-ignore
+      window.recoveryKey.generate().then(setRecoveryKey);
+    }
+  }, []);
 
   const handleNameNext = () => {
     if (!clinicName.trim()) {
@@ -239,15 +244,15 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
   if (step === 'dev-pin') {
     return (
       <DevPinSetup
-        onSet={() => { setDevPinSet(true); setStep('done'); }}
-        onSkip={() => setStep('done')}
+        onSet={() => { setDevPinSet(true); setStep('recovery'); }}
+        onSkip={() => setStep('recovery')}
       />
     );
   }
 
   return (
-    <div className="wizard-overlay">
-      <div className="wizard-card">
+    <div className="bento-fullscreen-overlay">
+      <div className="bento-auth-card" style={{ maxWidth: '460px', alignItems: 'center' }}>
 
         {/* Progress dots */}
         <div className="wizard-progress">
@@ -261,29 +266,31 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 
         {/* ── Welcome ── */}
         {step === 'welcome' && (
-          <div className="wizard-body">
-            <div className="wizard-icon-badge blue">
-              <Building2 size={30} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            <div className="bento-auth-header">
+              <div className="bento-auth-icon blue">
+                <Building2 size={30} />
+              </div>
+              <h1>Welcome to Clinvo</h1>
+              <p>Let's get your clinic set up in a few quick steps. This will only take a minute.</p>
             </div>
-            <h1>Welcome to Clinvo</h1>
-            <p>Let's get your clinic set up in a few quick steps. This will only take a minute.</p>
 
-            <div className="wizard-checklist">
-              <div className="checklist-item">
-                <ChevronRight size={16} className="check-arrow" />
+            <div style={{ width: '100%', background: 'var(--background)', borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                <ChevronRight size={16} color="var(--primary)" />
                 <span>Set your clinic name</span>
               </div>
-              <div className="checklist-item">
-                <ChevronRight size={16} className="check-arrow" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                <ChevronRight size={16} color="var(--primary)" />
                 <span>Set a PIN to protect patient data</span>
               </div>
-              <div className="checklist-item">
-                <ChevronRight size={16} className="check-arrow" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                <ChevronRight size={16} color="var(--primary)" />
                 <span>Set a Developer PIN for admin access</span>
               </div>
             </div>
 
-            <button className="wizard-btn-primary" onClick={() => setStep('clinic-name')}>
+            <button className="bento-btn" style={{ width: '100%', padding: '0.9rem' }} onClick={() => setStep('clinic-name')}>
               Get Started
               <ArrowRight size={18} />
             </button>
@@ -292,29 +299,56 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 
         {/* ── Clinic Name ── */}
         {step === 'clinic-name' && (
-          <div className="wizard-body">
-            <div className="wizard-icon-badge blue">
-              <Building2 size={30} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            <div className="bento-auth-header">
+              <div className="bento-auth-icon blue">
+                <Building2 size={30} />
+              </div>
+              <h1>What is your clinic called?</h1>
+              <p>This name will appear on every receipt you generate.</p>
             </div>
-            <h1>What is your clinic called?</h1>
-            <p>This name will appear on every receipt you generate.</p>
 
-            <div className="wizard-input-group">
+            <div className="bento-form-group" style={{ width: '100%', marginBottom: '1.75rem' }}>
               <label htmlFor="clinic-name-input">Clinic Name</label>
               <input
                 id="clinic-name-input"
                 type="text"
+                className="bento-input"
                 placeholder="e.g. City Health Clinic"
                 value={clinicName}
                 onChange={e => { setClinicName(e.target.value); setNameError(''); }}
                 onKeyDown={e => e.key === 'Enter' && handleNameNext()}
                 autoFocus
               />
-              {nameError && <span className="wizard-error">{nameError}</span>}
+              {nameError && <span style={{ display: 'block', fontSize: '0.8rem', color: '#ef4444', marginTop: '0.4rem' }}>{nameError}</span>}
             </div>
 
-            <button className="wizard-btn-primary" onClick={handleNameNext}>
+            <button className="bento-btn" style={{ width: '100%', padding: '0.9rem' }} onClick={handleNameNext}>
               Continue
+              <ArrowRight size={18} />
+            </button>
+          </div>
+        )}
+
+        {/* ── Recovery Key ── */}
+        {step === 'recovery' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            <div className="bento-auth-header">
+              <div className="bento-auth-icon purple">
+                <KeyRound size={30} />
+              </div>
+              <h1>Save your Recovery Key</h1>
+              <p>This is the only way to reset your PINs if you forget them. Please keep it somewhere safe.</p>
+            </div>
+
+            <div style={{ width: '100%', background: '#fef2f2', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.75rem', textAlign: 'center', border: '2px dashed #fca5a5' }}>
+              <code style={{ fontSize: '1.25rem', fontWeight: 700, color: '#991b1b', letterSpacing: '1px' }}>
+                {recoveryKey || 'Generating...'}
+              </code>
+            </div>
+
+            <button className="bento-btn" style={{ width: '100%', padding: '0.9rem' }} onClick={() => setStep('done')}>
+              I have saved my Recovery Key
               <ArrowRight size={18} />
             </button>
           </div>
@@ -322,39 +356,41 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 
         {/* ── Done ── */}
         {step === 'done' && (
-          <div className="wizard-body">
-            <div className="wizard-icon-badge green">
-              <CheckCircle2 size={30} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            <div className="bento-auth-header">
+              <div className="bento-auth-icon green">
+                <CheckCircle2 size={30} />
+              </div>
+              <h1>All set!</h1>
+              <p>Your clinic has been configured and is ready to use.</p>
             </div>
-            <h1>All set!</h1>
-            <p>Your clinic has been configured and is ready to use.</p>
 
-            <div className="wizard-summary">
-              <div className="summary-row">
-                <Building2 size={16} />
+            <div style={{ width: '100%', background: 'var(--background)', borderRadius: '12px', padding: '1.1rem 1.25rem', marginBottom: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                <Building2 size={16} color="var(--primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
                 <span><strong>Clinic:</strong> {clinicName}</span>
               </div>
-              <div className="summary-row">
-                <KeyRound size={16} />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                <KeyRound size={16} color="var(--primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
                 <span>
                   <strong>PIN Lock:</strong>{' '}
                   {pinSet ? 'Enabled' : 'Not set — you can add one later in Control Center'}
                 </span>
               </div>
-              <div className="summary-row">
-                <Code2 size={16} />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                <Code2 size={16} color="var(--primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
                 <span>
                   <strong>Developer PIN:</strong>{' '}
                   {devPinSet ? 'Enabled' : 'Not set — developer mode will be inaccessible until set in Control Center'}
                 </span>
               </div>
-              <div className="summary-row">
-                <ShieldCheck size={16} />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                <ShieldCheck size={16} color="var(--primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
                 <span><strong>Auto Backup:</strong> Enabled — daily backups will be created automatically</span>
               </div>
             </div>
 
-            <button className="wizard-btn-primary" onClick={handleFinish}>
+            <button className="bento-btn" style={{ width: '100%', padding: '0.9rem' }} onClick={handleFinish}>
               Open Clinvo
               <ArrowRight size={18} />
             </button>
@@ -364,195 +400,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       </div>
 
       <style>{`
-        .wizard-overlay {
-          position: fixed;
-          inset: 0;
-          background: #f1f5f9;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          font-family: 'Inter', sans-serif;
-        }
-
-        .wizard-card {
-          background: white;
-          border-radius: 24px;
-          padding: 2.5rem 2.25rem;
-          width: 100%;
-          max-width: 460px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.1);
-          border: 1px solid #e2e8f0;
-        }
-
-        .wizard-progress {
-          display: flex;
-          justify-content: center;
-          gap: 0.5rem;
-          margin-bottom: 2rem;
-        }
-
-        .wizard-step-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #e2e8f0;
-          transition: all 0.2s;
-        }
-
-        .wizard-step-dot.active {
-          background: #2563eb;
-          width: 24px;
-          border-radius: 4px;
-        }
-
-        .wizard-step-dot.done {
-          background: #86efac;
-        }
-
-        .wizard-body {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-        }
-
-        .wizard-icon-badge {
-          width: 64px;
-          height: 64px;
-          border-radius: 18px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 1.25rem;
-        }
-
-        .wizard-icon-badge.blue { background: #eff6ff; color: #2563eb; }
-        .wizard-icon-badge.green { background: #f0fdf4; color: #16a34a; }
-
-        .wizard-body h1 {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: #0f172a;
-          margin: 0 0 0.5rem;
-        }
-
-        .wizard-body > p {
-          font-size: 0.9rem;
-          color: #64748b;
-          margin: 0 0 1.75rem;
-          line-height: 1.6;
-        }
-
-        .wizard-checklist {
-          width: 100%;
-          background: #f8fafc;
-          border-radius: 12px;
-          padding: 1rem 1.25rem;
-          margin-bottom: 1.75rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-          text-align: left;
-        }
-
-        .checklist-item {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          font-size: 0.9rem;
-          color: #334155;
-        }
-
-        .check-arrow { color: #2563eb; flex-shrink: 0; }
-
-        .wizard-input-group {
-          width: 100%;
-          text-align: left;
-          margin-bottom: 1.75rem;
-        }
-
-        .wizard-input-group label {
-          display: block;
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: #1e293b;
-          margin-bottom: 0.5rem;
-        }
-
-        .wizard-input-group input {
-          width: 100%;
-          padding: 0.75rem 1rem;
-          border: 2px solid #e2e8f0;
-          border-radius: 12px;
-          font-size: 1rem;
-          font-family: inherit;
-          color: #0f172a;
-          transition: border-color 0.15s;
-          box-sizing: border-box;
-        }
-
-        .wizard-input-group input:focus {
-          outline: none;
-          border-color: #2563eb;
-          box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-        }
-
-        .wizard-error {
-          display: block;
-          font-size: 0.8rem;
-          color: #ef4444;
-          margin-top: 0.4rem;
-        }
-
-        .wizard-btn-primary {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.6rem;
-          padding: 0.9rem 1.5rem;
-          background: #2563eb;
-          color: white;
-          border: none;
-          border-radius: 12px;
-          font-size: 1rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-
-        .wizard-btn-primary:hover {
-          background: #1d4ed8;
-          transform: translateY(-1px);
-        }
-
-        .wizard-summary {
-          width: 100%;
-          background: #f8fafc;
-          border-radius: 12px;
-          padding: 1.1rem 1.25rem;
-          margin-bottom: 1.75rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.85rem;
-          text-align: left;
-        }
-
-        .summary-row {
-          display: flex;
-          align-items: flex-start;
-          gap: 0.65rem;
-          font-size: 0.875rem;
-          color: #334155;
-          line-height: 1.5;
-        }
-
-        .summary-row svg {
-          color: #2563eb;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
+        /* Remove unused wizard- specific styles and rely on inline or bento classes */
       `}</style>
     </div>
   );

@@ -135,7 +135,6 @@ export const storage = {
       console.log('Migration successfully completed!');
       
       // Perform a single sync to Excel after full migration
-      await storage.syncToExcel();
     } catch (error) {
       console.error('Migration failed:', error);
       // We don't set the flag so it tries again next time
@@ -150,13 +149,11 @@ export const storage = {
   saveDoctor: async (doctor: Doctor) => {
     // @ts-ignore
     await window.database.saveDoctor(doctor);
-    await storage.syncToExcel();
   },
 
   deleteDoctor: async (id: string) => {
     // @ts-ignore
     await window.database.deleteDoctor(id);
-    await storage.syncToExcel();
   },
 
   getServices: async (): Promise<Service[]> => {
@@ -167,13 +164,11 @@ export const storage = {
   saveService: async (service: Service) => {
     // @ts-ignore
     await window.database.saveService(service);
-    await storage.syncToExcel();
   },
 
   deleteService: async (id: string) => {
     // @ts-ignore
     await window.database.deleteService(id);
-    await storage.syncToExcel();
   },
 
   getReceipts: async (): Promise<Receipt[]> => {
@@ -192,20 +187,16 @@ export const storage = {
     const prefix = isFree ? 'F' : '';
     // @ts-ignore
     await window.database.setMetadata(key, prefix + nextNum.toString());
-    
-    await storage.syncToExcel();
   },
 
   deleteReceipt: async (id: string) => {
     // @ts-ignore
     await window.database.deleteReceipt(id);
-    await storage.syncToExcel();
   },
 
   updateReceipt: async (receipt: Receipt) => {
     // @ts-ignore
     await window.database.updateReceipt(receipt);
-    await storage.syncToExcel();
     return true;
   },
 
@@ -217,31 +208,6 @@ export const storage = {
     return isFree ? 'F1001' : '1001';
   },
 
-  syncToExcel: async () => {
-    const doctors = await storage.getDoctors();
-    const services = await storage.getServices();
-    const receipts = await storage.getReceipts();
-    const lastNum = await storage.getNextReceiptNumber(false);
-    
-    // Safety check: Don't sync if everything is empty but we have a flag
-    // (This avoids overwriting Excel with empty data if SQLite fails to load)
-    if (doctors.length === 0 && receipts.length === 0 && localStorage.getItem(STORAGE_KEYS.SQLITE_MIGRATED) === 'true') {
-      console.warn('Sync aborted: SQLite returned empty data. Not overwriting Excel.');
-      return;
-    }
-
-    const data = {
-      doctors,
-      services,
-      receipts: receipts.map(r => ({
-        ...r,
-        items: JSON.stringify(r.items)
-      })),
-      lastReceiptNum: lastNum
-    };
-    // @ts-ignore
-    window.excelStorage?.saveData(data);
-  },
 
   exportData: async () => {
     const data = {
@@ -282,7 +248,6 @@ export const storage = {
         // @ts-ignore
         await window.database.setMetadata('last_receipt_num', data.lastReceiptNum);
       }
-      await storage.syncToExcel();
       return true;
     } catch (e) {
       console.error('Failed to import data:', e);
@@ -335,7 +300,6 @@ export const storage = {
       if (Array.isArray(newDoctors)) {
         // @ts-ignore
         await window.database.batchImportDoctors(newDoctors);
-        await storage.syncToExcel();
         return true;
       }
       return false;

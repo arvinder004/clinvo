@@ -6,7 +6,7 @@ let db: any;
 
 export const database = {
   init: (Database: any) => {
-    const DATA_DIR = path.join(app.getPath('userData'), 'ClinicData');
+    const DATA_DIR = path.join(app.getPath('documents'), 'ClinvoData', 'Database');
     const DB_PATH = path.join(DATA_DIR, 'clinvo.db');
 
     if (!fs.existsSync(DATA_DIR)) {
@@ -66,8 +66,14 @@ export const database = {
     } catch (_e) { /* already exists */ }
   },
 
+  exportDb: () => {
+    const DATA_DIR = path.join(app.getPath('documents'), 'ClinvoData', 'Database');
+    const DB_PATH = path.join(DATA_DIR, 'clinvo.db');
+    return DB_PATH;
+  },
+
   getDbPath: () => {
-    const DATA_DIR = path.join(app.getPath('userData'), 'ClinicData');
+    const DATA_DIR = path.join(app.getPath('documents'), 'ClinvoData', 'Database');
     return path.join(DATA_DIR, 'clinvo.db');
   },
 
