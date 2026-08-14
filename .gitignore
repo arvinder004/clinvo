@@ -60,3 +60,6 @@ coverage/
 
 # Mac extended attributes
 __MACOSX/
+seed-db.mjs
+seed.sql
+scripts/generate-license.js
