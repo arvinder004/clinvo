@@ -365,7 +365,7 @@ ipcMain.handle('save-pdf', async (event) => {
     const data = await win.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
-      marginsType: 0,
+      margins: { marginType: 'none' },
     })
 
     // Restore normal view

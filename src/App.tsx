@@ -264,7 +264,7 @@ const App: React.FC = () => {
       const result = await window.pdf.save();
       if (!result.success && result.error) alert('PDF error: ' + result.error);
     } finally {
-      setReceiptsToPrint(null);
+      setReceiptsToPrint([]);
     }
   };
 
