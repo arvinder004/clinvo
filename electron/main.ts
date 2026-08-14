@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+/// <reference types="vite/client" />
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -35,12 +36,13 @@ database.init(Database)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 import { createClient } from '@supabase/supabase-js'
-const SUPABASE_URL = 'https://pwiuzmjmzekthvnpxoht.supabase.co'
-const SUPABASE_ANON_KEY = 'sb_publishable_007w9EecvzQX25VhkFZ62w_ZtU5aaEU'
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 const store = new Store()
-const SECRET_SALT = 'CLINVO-OFFLINE-LICENSE-2024-X99'
+const SECRET_SALT = import.meta.env.VITE_SECRET_SALT || ''
 // The built directory structure
 //
 // ├─┬─┬ dist
