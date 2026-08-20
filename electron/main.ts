@@ -35,11 +35,6 @@ database.init(Database)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-import { createClient } from '@supabase/supabase-js'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 const store = new Store()
 const SECRET_SALT = import.meta.env.VITE_SECRET_SALT || ''
