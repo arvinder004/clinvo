@@ -10,11 +10,11 @@ export default defineConfig({
     electron({
       main: {
         // Shortcut of `build.lib.entry`.
-        entry: 'electron/main.ts',
+        entry: 'electron/index.ts',
         vite: {
           build: {
             commonjsOptions: {
-              ignoreDynamicRequires: true
+              ignoreDynamicRequires: true,
             },
             rollupOptions: {
               external: [
@@ -27,7 +27,7 @@ export default defineConfig({
                 'node:fs',
                 'node:module',
                 'node:url',
-                'node:crypto'
+                'node:crypto',
               ],
             },
           },
@@ -35,7 +35,7 @@ export default defineConfig({
       },
       preload: {
         // Shortcut of `build.rollupOptions.input`.
-        input: path.join(__dirname, 'electron/preload.ts'),
+        input: path.join(import.meta.dirname, 'electron/preload.ts'),
       },
     }),
   ],

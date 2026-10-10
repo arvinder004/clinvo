@@ -2,7 +2,7 @@
   "name": "clinic",
   "private": true,
   "version": "3.0.2",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/index.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
   "dependencies": {
     "better-sqlite3": "^12.10.0",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.4.2",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.9",
     "lucide-react": "^1.8.0",

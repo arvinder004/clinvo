@@ -9,5 +9,11 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["main.ts", "preload.ts"]
+  "include": [
+    "index.ts",
+    "preload.ts",
+    "database/**/*.ts",
+    "ipc/**/*.ts",
+    "services/**/*.ts"
+  ]
 }
