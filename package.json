@@ -1,7 +1,7 @@
 {
   "name": "clinic",
   "private": true,
-  "version": "3.0.2",
+  "version": "3.0.3",
   "main": "dist-electron/index.js",
   "type": "module",
   "scripts": {
