@@ -1,0 +1,28 @@
+{
+  "name": "@clinvo/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "postgres": "3.4.9",
+    "zod": "3.25.67"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "drizzle-kit": "0.31.11",
+    "@types/node": "24.0.10"
+  }
+}

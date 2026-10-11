@@ -1,0 +1,55 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Scaffold the backend pnpm workspace monorepo and implement the @clinvo/shared package with Drizzle schemas, TypeScript types, and utility functions. This is the foundation every other package depends on.",
+  "status": "completed",
+  "steps": [
+    "Install pnpm globally: npm install -g pnpm@9.12.0",
+
+    "Create backend/package.json as the pnpm workspace root:\n{\n  \"name\": \"clinvo-backend\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"pnpm -r build\",\n    \"dev\": \"pnpm -r --parallel dev\"\n  }\n}",
+
+    "Create backend/pnpm-workspace.yaml:\npackages:\n  - 'packages/*'",
+
+    "Create backend/docker-compose.yml with a postgres:16-alpine service (port 5432, volume pg_data, env POSTGRES_PASSWORD/USER/DB from .env) and a redis:7-alpine service (port 6379). Both on network clinvo-net.",
+
+    "Create backend/.env.example with all required vars:\n  DATABASE_URL=postgresql://clinvo:password@localhost:5432/clinvo_dev\n  REDIS_URL=redis://localhost:6379\n  ADMIN_SECRET_KEY=<generate-a-long-random-string>\n  JWT_SECRET=<generate-a-long-random-string>\n  JWT_EXPIRY=8h\n  INTERNAL_SERVICE_KEY=<generate-a-long-random-string>\n  RESEND_API_KEY=re_...\n  EMAIL_FROM=Clinvo <noreply@clinvo.in>\n  PORT_LICENSE=3001\n  PORT_NOTIFY=3003\n  NODE_ENV=development",
+
+    "Create backend/packages/shared/ with this structure:\n  package.json\n  tsconfig.json\n  src/\n    index.ts          (barrel export)\n    types.ts          (TypeScript interfaces for all DB entities)\n    schema.ts         (Drizzle ORM table definitions)\n    db.ts             (createDb factory function)\n    utils/\n      crypto.ts       (hashApiKey, generateApiKey)\n      pagination.ts   (parsePaginationQuery helper)\n    zod/\n      license.ts      (Zod schemas for license API)\n      tenant.ts       (Zod schemas for tenant API)\n      plan.ts         (Zod schemas for plan API)\n      auth.ts         (Zod schema for admin login)",
+
+    "backend/packages/shared/package.json:\n{\n  \"name\": \"@clinvo/shared\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"exports\": { \".\": { \"import\": \"./dist/index.js\", \"types\": \"./dist/index.d.ts\" } },\n  \"main\": \"./dist/index.js\",\n  \"types\": \"./dist/index.d.ts\",\n  \"scripts\": { \"build\": \"tsc\", \"dev\": \"tsc --watch\" },\n  \"dependencies\": {\n    \"drizzle-orm\": \"0.45.4\",\n    \"postgres\": \"3.4.9\",\n    \"zod\": \"3.25.67\"\n  },\n  \"devDependencies\": {\n    \"typescript\": \"5.8.3\",\n    \"drizzle-kit\": \"0.31.11\",\n    \"@types/node\": \"24.0.10\"\n  }\n}\nNote: use the exact versions listed here. For zod use latest 3.x — check with npm view zod version.",
+
+    "backend/packages/shared/tsconfig.json:\n{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"NodeNext\",\n    \"moduleResolution\": \"NodeNext\",\n    \"outDir\": \"./dist\",\n    \"rootDir\": \"./src\",\n    \"declaration\": true,\n    \"declarationMap\": true,\n    \"sourceMap\": true,\n    \"strict\": true,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true\n  },\n  \"include\": [\"src\"]\n}",
+
+    "Implement backend/packages/shared/src/types.ts with TypeScript interfaces matching every DB table:\n  - Tenant { id, name, ownerName, ownerEmail, ownerPhone, createdAt }\n  - Plan { id, name, description, priceInr, isActive }\n  - PlanFeature { planId, featureKey, value }\n  - License { id, tenantId, planId, apiKeyHash, apiKeyPrefix, status, expiresAt, createdAt, lastSeenAt, notes }\n  - LicenseFeatureOverride { licenseId, featureKey, value }\n  - LicenseEvent { id, licenseId, eventType, metadata, createdAt }\n  - LicenseStatus = 'active' | 'paused' | 'expired' | 'cancelled'\n  - VerifyKeyResponse (the feature flag payload from roadmap section: valid, status, plan, tenantId, expiresAt, features)\n  - PaginatedResponse<T> { data: T[], total: number, page: number, pageSize: number }",
+
+    "Implement backend/packages/shared/src/schema.ts using drizzle-orm/pg-core. Define pgTable for: tenants, plans, plan_features, licenses, license_feature_overrides, license_events. Use pgEnum for license status ('active','paused','expired','cancelled'). Use uuid().defaultRandom() for PK fields. Use timestamp({ withTimezone: true }) for all timestamp columns. Export all table objects and the licenseStatusEnum.",
+
+    "Implement backend/packages/shared/src/db.ts:\n  import postgres from 'postgres';\n  import { drizzle } from 'drizzle-orm/postgres-js';\n  import * as schema from './schema.js';\n  export function createDb(connectionString: string) {\n    const client = postgres(connectionString);\n    return drizzle(client, { schema });\n  }\n  export type Db = ReturnType<typeof createDb>;",
+
+    "Implement backend/packages/shared/src/utils/crypto.ts:\n  import { createHash, randomBytes } from 'node:crypto';\n  export function hashApiKey(key: string): string {\n    return createHash('sha256').update(key).digest('hex');\n  }\n  export function generateApiKey(env: 'live' | 'test'): string {\n    const hex = randomBytes(16).toString('hex'); // 32 hex chars\n    return `clnv_${env}_${hex}`;\n  }",
+
+    "Implement backend/packages/shared/src/utils/pagination.ts:\n  export interface PaginationQuery { page: number; pageSize: number; }\n  export function parsePaginationQuery(query: Record<string, unknown>): PaginationQuery {\n    const page = Math.max(1, parseInt(String(query.page ?? 1), 10));\n    const pageSize = Math.min(100, Math.max(1, parseInt(String(query.pageSize ?? 20), 10)));\n    return { page, pageSize };\n  }",
+
+    "Implement backend/packages/shared/src/zod/license.ts — Zod schemas:\n  - IssueLicenseBody: tenantId (uuid), planId (uuid), expiresAt (ISO date string), notes (optional string), env ('live'|'test', default 'live')\n  - UpdateLicenseStatusBody: status (LicenseStatus enum)\n  - UpdateLicenseExpiryBody: expiresAt (ISO date string)\n  - UpdateLicenseFeaturesBody: features (Record<string, string>)\n  - PaginationQuerySchema: page (coerce number, default 1), pageSize (coerce number, default 20)",
+
+    "Implement backend/packages/shared/src/zod/tenant.ts:\n  - CreateTenantBody: name, ownerName, ownerEmail (email), ownerPhone (optional)\n\nImplement backend/packages/shared/src/zod/plan.ts:\n  - CreatePlanBody: name, description (optional), priceInr (number), features (Record<string, string>)\n\nImplement backend/packages/shared/src/zod/auth.ts:\n  - AdminLoginBody: username (string), password (string)",
+
+    "Implement backend/packages/shared/src/index.ts as a barrel that re-exports everything from types.ts, schema.ts, db.ts, utils/crypto.ts, utils/pagination.ts, and all zod schemas.",
+
+    "Create backend/packages/shared/drizzle.config.ts for drizzle-kit (used for local migration generation only — not run in CI):\n  export default {\n    schema: './src/schema.ts',\n    out: './migrations',\n    dialect: 'postgresql',\n    dbCredentials: { url: process.env.DATABASE_URL! }\n  };"
+  ],
+  "acceptance_criteria": [
+    "Running `cd /Users/arvinder004/Developer/clinvo/backend && pnpm install` succeeds with no errors",
+    "Running `pnpm --filter @clinvo/shared build` exits 0 with zero TypeScript errors",
+    "The dist/ directory appears under backend/packages/shared/ with .js and .d.ts files",
+    "hashApiKey('test') returns a 64-character lowercase hex string (verifiable by inspecting the compiled output or adding a quick node -e test)",
+    "generateApiKey('live') returns a string matching /^clnv_live_[0-9a-f]{32}$/"
+  ],
+  "verification": [
+    "cd /Users/arvinder004/Developer/clinvo/backend && pnpm install",
+    "pnpm --filter @clinvo/shared build",
+    "ls /Users/arvinder004/Developer/clinvo/backend/packages/shared/dist/ should show index.js, index.d.ts, schema.js, db.js, etc."
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented successfully. pnpm install succeeded, tsc compiled with zero errors. hashApiKey('test') returns 64-char hex, generateApiKey('live') matches /^clnv_live_[0-9a-f]{32}$/. zod 3.25.67 used as specified. drizzle-kit deprecated subdeps (@esbuild-kit/*) are expected transitive deps — no action required."
+}
