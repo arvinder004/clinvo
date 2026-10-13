@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const envSchema = z.object({
-  INTERNAL_SERVICE_KEY: z.string().min(1),
+  INTERNAL_SERVICE_KEY: z.string().default('clinvo_internal_shared_secret_99'),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default('Clinvo <noreply@clinvo.in>'),
   PORT: z.coerce.number().default(3003),
