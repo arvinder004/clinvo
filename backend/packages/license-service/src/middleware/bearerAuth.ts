@@ -1,9 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { hashApiKey } from '@clinvo/shared';
+import { hashApiKey, licenses, eq, and, gt, type Db } from '@clinvo/shared';
 import { AppError } from './errorHandler.js';
-import type { Db } from '@clinvo/shared';
-import { eq, and, gt } from 'drizzle-orm';
-import { licenses } from '@clinvo/shared';
 
 export function createBearerAuth(db: Db) {
   return async function bearerAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {

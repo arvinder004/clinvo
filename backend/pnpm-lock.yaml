@@ -112,7 +112,7 @@ importers:
   packages/shared:
     dependencies:
       '@prisma/client':
-        specifier: ^6.19.3
+        specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.8.3))(typescript@5.8.3)
       drizzle-orm:
         specifier: 0.45.4
@@ -120,6 +120,9 @@ importers:
       postgres:
         specifier: 3.4.9
         version: 3.4.9
+      prisma:
+        specifier: 6.19.3
+        version: 6.19.3(typescript@5.8.3)
       zod:
         specifier: 3.25.67
         version: 3.25.67
@@ -130,9 +133,6 @@ importers:
       drizzle-kit:
         specifier: 0.31.11
         version: 0.31.11
-      prisma:
-        specifier: 6.19.3
-        version: 6.19.3(typescript@5.8.3)
       typescript:
         specifier: 5.8.3
         version: 5.8.3

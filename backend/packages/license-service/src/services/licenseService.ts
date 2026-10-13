@@ -17,8 +17,8 @@ import {
   IssueLicenseBodyType,
   CreateTenantBodyType,
   CreatePlanBodyType,
+  eq, lt, and, sql, desc,
 } from '@clinvo/shared';
-import { eq, lt, and, sql, desc } from 'drizzle-orm';
 import { AppError } from '../middleware/errorHandler.js';
 
 // ─── Issue ───────────────────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ export async function createPlan(
   if (!plan) throw new AppError(500, 'INTERNAL_SERVER_ERROR', 'Failed to create plan');
 
   for (const [featureKey, value] of Object.entries(body.features)) {
-    await db.insert(planFeatures).values({ planId: plan.id, featureKey, value });
+    await db.insert(planFeatures).values({ planId: plan.id, featureKey, value: String(value) });
   }
 
   return { ...plan, features: body.features };

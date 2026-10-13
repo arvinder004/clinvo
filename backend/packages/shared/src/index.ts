@@ -23,3 +23,5 @@ export * from './prisma.js';
 // GDPR & Patient PII Compliance
 export * from './gdpr.js';
 
+// Drizzle ORM helpers
+export * from 'drizzle-orm';
