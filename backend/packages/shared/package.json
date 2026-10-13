@@ -16,13 +16,15 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "drizzle-orm": "0.45.4",
     "postgres": "3.4.9",
     "zod": "3.25.67"
   },
   "devDependencies": {
-    "typescript": "5.8.3",
+    "@types/node": "24.0.10",
     "drizzle-kit": "0.31.11",
-    "@types/node": "24.0.10"
+    "prisma": "6.19.3",
+    "typescript": "5.8.3"
   }
 }

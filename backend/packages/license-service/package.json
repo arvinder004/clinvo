@@ -1,0 +1,35 @@
+{
+  "name": "@clinvo/license-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@clinvo/shared": "workspace:*",
+    "bcryptjs": "2.4.3",
+    "express": "5.3.0",
+    "cors": "2.8.6",
+    "helmet": "8.3.0",
+    "morgan": "1.12.1",
+    "express-rate-limit": "8.7.1",
+    "jsonwebtoken": "9.0.3",
+    "drizzle-orm": "0.45.4",
+    "node-cron": "4.6.0",
+    "dotenv": "16.5.0",
+    "zod": "3.25.67"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "tsx": "4.19.4",
+    "@types/bcryptjs": "2.4.6",
+    "@types/express": "5.0.6",
+    "@types/cors": "2.8.19",
+    "@types/morgan": "1.9.10",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/node": "24.0.10"
+  }
+}

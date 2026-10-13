@@ -16,3 +16,10 @@ export * from './zod/license.js';
 export * from './zod/tenant.js';
 export * from './zod/plan.js';
 export * from './zod/auth.js';
+
+// Prisma & PostgreSQL
+export * from './prisma.js';
+
+// GDPR & Patient PII Compliance
+export * from './gdpr.js';
+
