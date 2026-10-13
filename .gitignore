@@ -63,3 +63,5 @@ __MACOSX/
 seed-db.mjs
 seed.sql
 scripts/generate-license.js
+
+.agents
