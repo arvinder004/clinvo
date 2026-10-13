@@ -20,9 +20,32 @@ export function createApp(db: Db) {
 
   // Security & logging
   app.use(helmet());
+
+  const explicitOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+    : ['https://admin.clinvo.in', 'https://app.clinvo.in', 'http://localhost:5173', 'http://localhost:5174'];
+
   app.use(
     cors({
-      origin: ['https://admin.clinvo.in', 'https://app.clinvo.in', 'http://localhost:5173'],
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        try {
+          const url = new URL(origin);
+          if (
+            explicitOrigins.includes(origin) ||
+            explicitOrigins.includes('*') ||
+            url.hostname.endsWith('.vercel.app') ||
+            url.hostname === 'localhost' ||
+            url.hostname.endsWith('clinvo.in')
+          ) {
+            return callback(null, true);
+          }
+        } catch {
+          // fallback
+        }
+        return callback(null, true);
+      },
+      credentials: true,
     }),
   );
   app.use(express.json());
