@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { getToken, clearToken } from './auth';
 
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const baseURL = String(rawBaseUrl).replace(/\/+$/, '');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
+  baseURL,
 });
 
 api.interceptors.request.use((config) => {

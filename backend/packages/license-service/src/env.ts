@@ -13,6 +13,7 @@ const envSchema = z.object({
   NOTIFY_SERVICE_URL: z.string().default('http://localhost:3003'),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.string().default('development'),
+  ADMIN_USERNAME: z.string().default('admin'),
   ADMIN_PASSWORD_HASH: z.string().optional(),
   ADMIN_PASSWORD: z.string().optional(),
 });

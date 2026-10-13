@@ -9,6 +9,6 @@ const app = createApp(db);
 
 startCronJobs(db);
 
-app.listen(env.PORT, () => {
+app.listen(env.PORT, '0.0.0.0', () => {
   console.log(`✅ License service running on port ${env.PORT}`);
 });

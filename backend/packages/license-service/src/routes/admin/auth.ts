@@ -18,7 +18,7 @@ export function authRouter(): Router {
 
       const { username, password } = parsed.data;
 
-      if (username !== 'admin') {
+      if (username !== env.ADMIN_USERNAME) {
         return next(new AppError(401, 'INVALID_CREDENTIALS', 'Invalid username or password'));
       }
 

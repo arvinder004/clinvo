@@ -3,6 +3,9 @@
   "private": true,
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm -r --parallel dev"
+    "dev": "pnpm -r --parallel dev",
+    "db:push": "pnpm --filter @clinvo/shared drizzle-kit push",
+    "db:generate": "pnpm --filter @clinvo/shared drizzle-kit generate",
+    "prisma:push": "prisma db push --schema=packages/shared/prisma/schema.prisma"
   }
 }
