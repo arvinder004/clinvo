@@ -54,6 +54,21 @@ const DoctorManagement: React.FC<DoctorManagementProps> = ({ doctors, onUpdate, 
       ...form,
     };
     await storage.saveDoctor(doctor);
+
+    // @ts-ignore
+    if (typeof window !== 'undefined' && window.platformAdmin) {
+      // @ts-ignore
+      const activeClinic = window.platformAdmin.getActiveClinic?.();
+      // @ts-ignore
+      window.platformAdmin.logActivity({
+        userName: doctor.name,
+        userRole: 'doctor',
+        clinicName: activeClinic?.name || 'Clinvo Medical Centre',
+        action: editingId ? 'Doctor Profile Updated' : 'New Doctor Registered',
+        details: `${editingId ? 'Updated' : 'Added'} Dr. ${doctor.name} (${doctor.specialization})`,
+      });
+    }
+
     onUpdate();
     closeModal();
   };

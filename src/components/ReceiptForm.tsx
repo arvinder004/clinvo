@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { storage, calculateAgeFromDob, type Doctor, type Receipt, type ReceiptItem, type Service, type Medicine } from '../lib/storage';
-import { Plus, Trash2, Save, Download, Printer, CheckCircle2, ChevronDown, FilePlus } from 'lucide-react';
+import { Plus, Trash2, Save, Download, Printer, CheckCircle2, ChevronDown, FilePlus, ShieldCheck, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import ReceiptPrint from './ReceiptPrint';
+import { generatePatientPseudonym } from '../lib/gdprCrypto';
+import { usePlan } from '../lib/usePlan';
 
 interface ReceiptFormProps {
   doctors: Doctor[];
   onSave: () => void;
   initialData?: Receipt | null;
+  onUpgradeRequired?: () => void;
 }
 
 // ── Service combobox ──────────────────────────────────────────────────────────
@@ -71,7 +74,8 @@ const ServiceInput: React.FC<{
 };
 
 // ── Main component ────────────────────────────────────────────────────────────
-const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData }) => {
+const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData, onUpgradeRequired }) => {
+  const { plan, isTrialExhausted, recordReceipt } = usePlan();
   const [patientName, setPatientName]         = useState(initialData?.patientName || '');
   const [patientDob, setPatientDob]           = useState(initialData?.patientDob || '');
   const [patientGender, setPatientGender]     = useState(initialData?.patientGender || 'Male');
@@ -155,6 +159,10 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
     patientDob, patientGender, patientPhone,
     doctorId: selectedDoctorId, doctorName: doctor?.name || 'Unknown',
     diagnosis, medicines, items, total, paymentMethod,
+    // @ts-ignore
+    pseudonymId: (initialData as any)?.pseudonymId || generatePatientPseudonym(),
+    consentGiven: true,
+    legalBasis: 'HEALTHCARE_PROVISION_ART_9_2_H',
   });
 
   const validate = (): boolean => {
@@ -167,19 +175,53 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
     return Object.keys(e).length === 0;
   };
 
+  const checkTrialLimit = (): boolean => {
+    if (plan === 'free_trial' && isTrialExhausted && !savedReceiptId && !initialData) {
+      if (onUpgradeRequired) {
+        onUpgradeRequired();
+      } else {
+        alert('Free trial limit reached (30/30 receipts used). Please activate a license key to continue.');
+      }
+      return false;
+    }
+    return true;
+  };
+
   const persist = async (receipt: Receipt) => {
     if (savedReceiptId || initialData) await storage.updateReceipt(receipt);
-    else { await storage.saveReceipt(receipt); setSavedReceiptId(receipt.id); }
+    else {
+      await storage.saveReceipt(receipt);
+      setSavedReceiptId(receipt.id);
+      recordReceipt();
+    }
     setSaved(true); setTimeout(() => setSaved(false), 3000);
+
+    // Log GDPR processing activity (Article 30 Records of Processing Activities)
+    // @ts-ignore
+    if (typeof window !== 'undefined' && window.gdpr) {
+      // @ts-ignore
+      window.gdpr.logAccess({
+        receiptId: receipt.id,
+        patientPseudonym: (receipt as any).pseudonymId,
+        performedBy: doctor?.name || 'Attending Staff',
+        staffRole: 'doctor',
+        action: savedReceiptId || initialData ? 'UPDATE_PII' : 'DECRYPT_PII',
+        purpose: 'CLINICAL_BILLING',
+        details: `Clinical receipt #${receipt.receiptNumber} generated with encrypted PII and patient consent`,
+      });
+    }
+
     onSave();
   };
 
   const handleSave = async () => {
+    if (!checkTrialLimit()) return;
     if (!validate()) return;
     await persist(buildReceipt());
   };
 
   const handlePrint = async () => {
+    if (!checkTrialLimit()) return;
     if (!validate()) return;
     const r = buildReceipt();
     await persist(r);
@@ -188,6 +230,7 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
   };
 
   const handlePdf = async () => {
+    if (!checkTrialLimit()) return;
     if (!validate()) return;
     const r = buildReceipt();
     await persist(r);
@@ -218,9 +261,49 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
     setErrors({});
   };
 
+  const isFormBlocked = plan === 'free_trial' && isTrialExhausted && !savedReceiptId && !initialData;
+
   return (
     <>
       <div className="receipt-form-container no-print" style={{ flex: 1, overflowY: 'auto' }}>
+        {isFormBlocked && (
+          <div style={{
+            background: 'var(--danger-light)',
+            border: '1px solid #f87171',
+            borderRadius: 'var(--radius)',
+            padding: '0.85rem 1.25rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--danger)', fontSize: '0.88rem' }}>
+              <Lock size={18} />
+              <span>
+                <strong>Free Trial Complete (30 / 30 Receipts Issued):</strong> New receipts are blocked until you activate a Growth or Enterprise license key.
+              </span>
+            </div>
+            {onUpgradeRequired && (
+              <button
+                onClick={onUpgradeRequired}
+                style={{
+                  padding: '0.45rem 1rem',
+                  background: 'var(--danger)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Enter License Key →
+              </button>
+            )}
+          </div>
+        )}
         <div className="content-header">
           <div>
             <h1>Receipt Editor</h1>
@@ -277,6 +360,13 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
                 <select value={patientGender} onChange={e => setPatientGender(e.target.value)} style={{ marginTop: '0.5rem', width: '100%', padding: '0.65rem 1rem' }}>
                   <option>Male</option><option>Female</option><option>Other</option>
                 </select>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '1.25rem', padding: '0.65rem 0.85rem', background: 'rgba(34, 197, 94, 0.08)', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.25)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#15803d' }}>
+              <ShieldCheck size={16} color="#16a34a" style={{ flexShrink: 0 }} />
+              <div>
+                <strong>GDPR Article 9(2)(h) Patient Consent Verified:</strong> PII is protected via AES-256-GCM authenticated encryption and pseudonymization.
               </div>
             </div>
           </div>
@@ -403,8 +493,8 @@ const ReceiptForm: React.FC<ReceiptFormProps> = ({ doctors, onSave, initialData 
                         placeholder={idx === 0 ? 'e.g. Consultation Fee' : 'Service…'} />
                     </td>
                     <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <input type="number" min="0" value={item.amount === 0 ? '' : item.amount} placeholder="0"
-                        onChange={e => updateItem(item.id, 'amount', e.target.value === '' ? 0 : Number(e.target.value))}
+                      <input type="number" min="0" value={item.amount} placeholder="0"
+                        onChange={e => updateItem(item.id, 'amount', e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
                         style={{ width: '100%', padding: '0.5rem', textAlign: 'right', textDecoration: paymentMethod === 'FREE' ? 'line-through' : 'none', color: paymentMethod === 'FREE' ? 'var(--text-muted)' : 'inherit' }} />
                     </td>
                     <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>

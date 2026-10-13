@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search, Printer, Edit2, Trash2, Calendar, TrendingUp,
-  FileText, User, Stethoscope, ChevronDown, ChevronRight, Download
+  FileText, User, Stethoscope, ChevronDown, ChevronRight, Download, UserX, Lock
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { calculateAgeFromDob, type Doctor, type Receipt } from '../lib/storage';
 import { storage } from '../lib/storage';
+import { usePlan } from '../lib/usePlan';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ interface Props {
   onDownload: (receipts: Receipt | Receipt[]) => void;
   onEdit: (receipt: Receipt) => void;
   onDelete: (id: string) => void;
+  onUpgradeRequired?: () => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -63,6 +65,24 @@ const ReceiptRow: React.FC<{
         <button className="bento-btn-ghost" style={{ padding: '0.4rem' }} onClick={() => onPrint(r)} title="Print"><Printer size={14} /></button>
         <button className="bento-btn-ghost" style={{ padding: '0.4rem' }} onClick={() => onDownload(r)} title="Download PDF"><Download size={14} /></button>
         <button className="bento-btn-ghost" style={{ padding: '0.4rem', color: '#0284c7' }} onClick={() => onEdit(r)} title="Edit"><Edit2 size={14} /></button>
+        <button
+          className="bento-btn-ghost"
+          style={{ padding: '0.4rem', color: '#8b5cf6' }}
+          onClick={() => {
+            if (window.confirm(`Execute GDPR Article 17 Erasure for ${r.patientName}? This permanently anonymizes patient PII while maintaining accounting records.`)) {
+              // @ts-ignore
+              if (window.gdpr) {
+                // @ts-ignore
+                window.gdpr.anonymizeReceipt(r.id, 'Attending Staff', 'GDPR Article 17 Right to Erasure');
+                alert('Patient PII scrubbed and anonymized in compliance with GDPR Art. 17.');
+                window.location.reload();
+              }
+            }
+          }}
+          title="GDPR Article 17: Anonymize Patient PII (Right to Erasure)"
+        >
+          <UserX size={14} />
+        </button>
         <button className="bento-btn-ghost" style={{ padding: '0.4rem', color: '#ef4444' }} onClick={() => onDelete(r.id)} title="Delete"><Trash2 size={14} /></button>
       </div>
     </td>
@@ -228,7 +248,9 @@ const FinancialView: React.FC<{
   onDownload: (r: Receipt) => void;
   onEdit: (r: Receipt) => void;
   onDelete: (id: string) => void;
-}> = ({ receipts, subView, onPrint, onDownload, onEdit, onDelete }) => {
+  canExportCsv?: boolean;
+  onUpgradeRequired?: () => void;
+}> = ({ receipts, subView, onPrint, onDownload, onEdit, onDelete, canExportCsv = true, onUpgradeRequired }) => {
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
 
@@ -301,8 +323,34 @@ const FinancialView: React.FC<{
             <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700 }}>{freeCount}</span>
           </div>
         </div>
-        <button onClick={() => storage.exportToExcel()} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: '6px', padding: '0.5rem 0.9rem', fontSize: '0.8rem', fontWeight: 600, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}>
-          <FileText size={14} /> Export CSV
+        <button
+          onClick={() => {
+            if (!canExportCsv) {
+              if (onUpgradeRequired) onUpgradeRequired();
+              else alert('CSV export is available on Growth and Enterprise plans.');
+              return;
+            }
+            storage.exportToExcel();
+          }}
+          style={{
+            marginLeft: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            background: canExportCsv ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.3)',
+            color: 'white',
+            borderRadius: '6px',
+            padding: '0.5rem 0.9rem',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+          title={canExportCsv ? 'Download CSV Report' : 'Locked on Free Trial — Click to upgrade'}
+        >
+          {canExportCsv ? <FileText size={14} /> : <Lock size={14} />}
+          {canExportCsv ? 'Export CSV' : 'Export CSV (Growth Plan)'}
         </button>
       </div>
 
@@ -475,10 +523,22 @@ const SubTabs: React.FC<{
 
 // ─── Main HistoryPage ─────────────────────────────────────────────────────────
 
-const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, onEdit, onDelete }) => {
+const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, onEdit, onDelete, onUpgradeRequired }) => {
+  const { plan, canAccess } = usePlan();
+  const canExportCsv = canAccess('csvExport');
   const [view, setView] = useState<HistoryView>('patient');
   const [patientSub, setPatientSub] = useState<PatientSubView>('by-name');
   const [financialSub, setFinancialSub] = useState<FinancialSubView>('by-month');
+
+  const sevenDaysAgo = useMemo(() => {
+    const d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  const effectiveReceipts = useMemo(() => {
+    if (plan !== 'free_trial') return receipts;
+    return receipts.filter(r => r.date >= sevenDaysAgo);
+  }, [receipts, plan, sevenDaysAgo]);
 
   const topTabs: { value: HistoryView; label: string; icon: React.ReactNode }[] = [
     { value: 'patient', label: 'Patient History', icon: <User size={16} /> },
@@ -488,6 +548,48 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, 
 
   return (
     <div className="bento-page no-print">
+      {/* Free Trial History Limit Notice */}
+      {plan === 'free_trial' && (
+        <div style={{
+          background: 'var(--warning-light)',
+          border: '1px solid #fcd34d',
+          color: '#92400e',
+          padding: '0.75rem 1.15rem',
+          borderRadius: 'var(--radius)',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          fontSize: '0.85rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Lock size={15} color="#d97706" />
+            <span>
+              <strong>Free Trial History (Last 7 Days):</strong> Displaying {effectiveReceipts.length} of {receipts.length} total receipts. Full history is unlocked on Growth & Enterprise plans.
+            </span>
+          </div>
+          {onUpgradeRequired && (
+            <button
+              onClick={onUpgradeRequired}
+              style={{
+                padding: '0.35rem 0.85rem',
+                background: '#d97706',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Upgrade History →
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Top-level tabs */}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         {topTabs.map(t => (
@@ -538,7 +640,7 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, 
       {/* Content */}
       {view === 'patient' && (
         <PatientView
-          receipts={receipts}
+          receipts={effectiveReceipts}
           subView={patientSub}
           onPrint={onPrint}
           onDownload={onDownload}
@@ -548,17 +650,19 @@ const HistoryPage: React.FC<Props> = ({ receipts, doctors, onPrint, onDownload, 
       )}
       {view === 'financial' && (
         <FinancialView
-          receipts={receipts}
+          receipts={effectiveReceipts}
           subView={financialSub}
           onPrint={onPrint}
           onDownload={onDownload}
           onEdit={onEdit}
           onDelete={onDelete}
+          canExportCsv={canExportCsv}
+          onUpgradeRequired={onUpgradeRequired}
         />
       )}
       {view === 'doctor' && (
         <DoctorView
-          receipts={receipts}
+          receipts={effectiveReceipts}
           doctors={doctors}
           onPrint={onPrint}
           onDownload={onDownload}

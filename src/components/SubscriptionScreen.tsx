@@ -57,7 +57,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onActivated }) 
             <div style={{ marginBottom: '1rem' }}>
               <input
                 type="text"
-                placeholder="DOC-XXXX-XXXX"
+                placeholder="clnv_live_... or DOC-..."
                 value={key}
                 onChange={(e) => {
                   setKey(e.target.value);
